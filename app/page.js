@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
+import Pagination from './components/Pagination';
 
 export default function Home() {
   const [results, setResults] = useState([]);
@@ -10,16 +11,26 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSearch = async ({ nafCodes, departements, tranches }) => {
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  // Derniers filtres utilisés (pour repaginer sans refaire la recherche)
+  const [lastFilters, setLastFilters] = useState(null);
+
+  const fetchResults = async (filters, currentPage, currentPerPage) => {
     setIsLoading(true);
     setError(null);
-    setHasSearched(true);
 
     try {
       const params = new URLSearchParams({
-        naf_codes: nafCodes.join(','),
-        departements: departements.join(','),
-        ...(tranches.length > 0 && { tranches: tranches.join(',') }),
+        naf_codes: filters.nafCodes.join(','),
+        departements: filters.departements.join(','),
+        page: String(currentPage),
+        per_page: String(currentPerPage),
+        ...(filters.tranches.length > 0 && { tranches: filters.tranches.join(',') }),
       });
 
       const res = await fetch(`/api/search?${params}`);
@@ -28,11 +39,38 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || 'Erreur lors de la recherche');
 
       setResults(data.results || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.total_pages || 0);
     } catch (err) {
       setError(err.message);
       setResults([]);
+      setTotal(0);
+      setTotalPages(0);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSearch = async (filters) => {
+    setHasSearched(true);
+    setPage(1);
+    setLastFilters(filters);
+    await fetchResults(filters, 1, perPage);
+  };
+
+  const handlePageChange = async (newPage) => {
+    setPage(newPage);
+    if (lastFilters) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      await fetchResults(lastFilters, newPage, perPage);
+    }
+  };
+
+  const handlePerPageChange = async (newPerPage) => {
+    setPerPage(newPerPage);
+    setPage(1);
+    if (lastFilters) {
+      await fetchResults(lastFilters, 1, newPerPage);
     }
   };
 
@@ -51,14 +89,12 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {results.length > 0 && (
+            {total > 0 && (
               <span className="text-sm text-amber-400 font-semibold">
-                {results.length} prospect{results.length > 1 ? 's' : ''} trouvé{results.length > 1 ? 's' : ''}
+                {total} prospect{total > 1 ? 's' : ''} trouvé{total > 1 ? 's' : ''}
               </span>
             )}
-            <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">
-              Beta
-            </span>
+            <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">Beta</span>
           </div>
         </div>
       </header>
@@ -67,14 +103,14 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
 
-          {/* Colonne gauche — Filtres */}
+          {/* Filtres */}
           <div className="lg:sticky lg:top-6">
             <div className="mb-4">
               <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Filtres de recherche</h2>
             </div>
             <Filters onSearch={handleSearch} isLoading={isLoading} />
 
-            {/* Info sources */}
+            {/* Sources */}
             <div className="mt-4 bg-[#0D1B2A]/5 rounded-xl border border-slate-200 p-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Sources de données</p>
               <div className="space-y-2">
@@ -83,22 +119,18 @@ export default function Home() {
                   <span className="text-xs text-slate-600">Base SIRENE (INSEE)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                  <span className="text-xs text-slate-400">Google Maps Places <span className="text-amber-500">(clé requise)</span></span>
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span className="text-xs text-slate-600">Google Maps Places</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                  <span className="text-xs text-slate-400">Pages Jaunes</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                  <span className="text-xs text-slate-400">LinkedIn Sales Navigator <span className="italic">(optionnel)</span></span>
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span className="text-xs text-slate-600">Pappers.fr</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Colonne droite — Résultats */}
+          {/* Résultats */}
           <div>
             {error && (
               <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
@@ -114,11 +146,7 @@ export default function Home() {
                   Sélectionnez un secteur d'activité, des départements et lancez votre recherche pour obtenir une liste de prospects qualifiés.
                 </p>
                 <div className="mt-6 grid grid-cols-3 gap-4 max-w-xs mx-auto">
-                  {[
-                    { icon: '⚡', label: 'Moins de 5 min' },
-                    { icon: '🏗️', label: 'PME & artisans' },
-                    { icon: '📊', label: 'Scoring intégré' },
-                  ].map(item => (
+                  {[{ icon: '⚡', label: 'Moins de 5 min' }, { icon: '🏗️', label: 'PME & artisans' }, { icon: '📊', label: 'Scoring intégré' }].map(item => (
                     <div key={item.label} className="flex flex-col items-center gap-1">
                       <span className="text-2xl">{item.icon}</span>
                       <span className="text-xs text-slate-400">{item.label}</span>
@@ -127,7 +155,19 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <ResultsTable results={results} isLoading={isLoading} />
+              <div className="space-y-0">
+                <ResultsTable results={results} isLoading={isLoading} />
+                {!isLoading && total > 0 && (
+                  <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    total={total}
+                    perPage={perPage}
+                    onPageChange={handlePageChange}
+                    onPerPageChange={handlePerPageChange}
+                  />
+                )}
+              </div>
             )}
           </div>
         </div>
