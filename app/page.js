@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
-import Pagination from './components/Pagination';
+import Pagination, { PER_PAGE_ALL } from './components/Pagination';
 
 export default function Home() {
   const [allResults, setAllResults] = useState([]); // TOUS les résultats en mémoire
@@ -16,8 +16,10 @@ export default function Home() {
   const [perPage, setPerPage] = useState(25);
 
   // Calcul pagination locale — aucun appel API
-  const totalPages = Math.ceil(allResults.length / perPage);
+  // PER_PAGE_ALL = Infinity → on retourne tout le tableau
+  const totalPages = perPage === PER_PAGE_ALL ? 1 : Math.ceil(allResults.length / perPage);
   const pageResults = useMemo(() => {
+    if (perPage === PER_PAGE_ALL) return allResults;
     const start = (page - 1) * perPage;
     return allResults.slice(start, start + perPage);
   }, [allResults, page, perPage]);

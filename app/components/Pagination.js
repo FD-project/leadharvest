@@ -1,10 +1,14 @@
 'use client';
 
+// Valeur sentinelle pour "Tous" — on passe total comme perPage côté page.js
+export const PER_PAGE_ALL = Infinity;
+
 export default function Pagination({ page, totalPages, total, perPage, onPageChange, onPerPageChange }) {
   if (total === 0) return null;
 
-  const start = (page - 1) * perPage + 1;
-  const end = Math.min(page * perPage, total);
+  const isAll  = perPage === PER_PAGE_ALL;
+  const start  = isAll ? 1 : (page - 1) * perPage + 1;
+  const end    = isAll ? total : Math.min(page * perPage, total);
 
   const pages = [];
   const delta = 2;
@@ -33,12 +37,19 @@ export default function Pagination({ page, totalPages, total, perPage, onPageCha
                 {n}
               </button>
             ))}
+            <button
+              onClick={() => onPerPageChange(PER_PAGE_ALL)}
+              className={`px-2.5 py-1.5 transition-colors ${isAll ? 'bg-amber-500 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+              title="Afficher toutes les entreprises — permet la sélection complète"
+            >
+              Tous
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Navigation pages */}
-      {totalPages > 1 && (
+      {/* Navigation pages — masquée en mode "Tous" */}
+      {totalPages > 1 && !isAll && (
         <div className="flex items-center gap-1">
           {/* Première page */}
           <button
