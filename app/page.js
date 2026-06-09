@@ -1,36 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
 import Pagination from './components/Pagination';
 
 export default function Home() {
-  const [results, setResults] = useState([]);
+  const [allResults, setAllResults] = useState([]); // TOUS les résultats en mémoire
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Pagination
+  // Pagination — 100% client
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
 
-  // Derniers filtres utilisés (pour repaginer sans refaire la recherche)
-  const [lastFilters, setLastFilters] = useState(null);
+  // Calcul pagination locale — aucun appel API
+  const totalPages = Math.ceil(allResults.length / perPage);
+  const pageResults = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return allResults.slice(start, start + perPage);
+  }, [allResults, page, perPage]);
 
-  const fetchResults = async (filters, currentPage, currentPerPage) => {
+  // Un seul appel API au lancement de la recherche
+  const handleSearch = async ({ nafCodes, departements, tranches }) => {
     setIsLoading(true);
     setError(null);
+    setHasSearched(true);
+    setPage(1); // Reset page
 
     try {
       const params = new URLSearchParams({
-        naf_codes: filters.nafCodes.join(','),
-        departements: filters.departements.join(','),
-        page: String(currentPage),
-        per_page: String(currentPerPage),
-        ...(filters.tranches.length > 0 && { tranches: filters.tranches.join(',') }),
+        naf_codes: nafCodes.join(','),
+        departements: departements.join(','),
+        ...(tranches.length > 0 && { tranches: tranches.join(',') }),
       });
 
       const res = await fetch(`/api/search?${params}`);
@@ -38,40 +41,30 @@ export default function Home() {
 
       if (!res.ok) throw new Error(data.error || 'Erreur lors de la recherche');
 
-      setResults(data.results || []);
-      setTotal(data.total || 0);
-      setTotalPages(data.total_pages || 0);
+      setAllResults(data.results || []);
     } catch (err) {
       setError(err.message);
-      setResults([]);
-      setTotal(0);
-      setTotalPages(0);
+      setAllResults([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSearch = async (filters) => {
-    setHasSearched(true);
-    setPage(1);
-    setLastFilters(filters);
-    await fetchResults(filters, 1, perPage);
-  };
-
-  const handlePageChange = async (newPage) => {
+  // Changement de page — instantané, pas d'appel API
+  const handlePageChange = (newPage) => {
     setPage(newPage);
-    if (lastFilters) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      await fetchResults(lastFilters, newPage, perPage);
-    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePerPageChange = async (newPerPage) => {
+  // Changement résultats par page — instantané
+  const handlePerPageChange = (newPerPage) => {
     setPerPage(newPerPage);
     setPage(1);
-    if (lastFilters) {
-      await fetchResults(lastFilters, 1, newPerPage);
-    }
+  };
+
+  // Mise à jour des résultats après enrichissement (depuis ResultsTable)
+  const handleResultsUpdate = (updatedResults) => {
+    setAllResults(updatedResults);
   };
 
   return (
@@ -89,9 +82,9 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {total > 0 && (
+            {allResults.length > 0 && (
               <span className="text-sm text-amber-400 font-semibold">
-                {total} prospect{total > 1 ? 's' : ''} trouvé{total > 1 ? 's' : ''}
+                {allResults.length} prospect{allResults.length > 1 ? 's' : ''} trouvé{allResults.length > 1 ? 's' : ''}
               </span>
             )}
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">Beta</span>
@@ -146,7 +139,11 @@ export default function Home() {
                   Sélectionnez un secteur d'activité, des départements et lancez votre recherche pour obtenir une liste de prospects qualifiés.
                 </p>
                 <div className="mt-6 grid grid-cols-3 gap-4 max-w-xs mx-auto">
-                  {[{ icon: '⚡', label: 'Moins de 5 min' }, { icon: '🏗️', label: 'PME & artisans' }, { icon: '📊', label: 'Scoring intégré' }].map(item => (
+                  {[
+                    { icon: '⚡', label: 'Moins de 5 min' },
+                    { icon: '🏗️', label: 'PME & artisans' },
+                    { icon: '📊', label: 'Scoring intégré' },
+                  ].map(item => (
                     <div key={item.label} className="flex flex-col items-center gap-1">
                       <span className="text-2xl">{item.icon}</span>
                       <span className="text-xs text-slate-400">{item.label}</span>
@@ -155,13 +152,18 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-0">
-                <ResultsTable results={results} isLoading={isLoading} />
-                {!isLoading && total > 0 && (
+              <div>
+                <ResultsTable
+                  results={pageResults}
+                  allResults={allResults}
+                  isLoading={isLoading}
+                  onResultsUpdate={handleResultsUpdate}
+                />
+                {!isLoading && allResults.length > 0 && (
                   <Pagination
                     page={page}
                     totalPages={totalPages}
-                    total={total}
+                    total={allResults.length}
                     perPage={perPage}
                     onPageChange={handlePageChange}
                     onPerPageChange={handlePerPageChange}

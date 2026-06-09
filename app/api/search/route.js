@@ -4,8 +4,6 @@ export async function GET(request) {
   const nafCodes = searchParams.get("naf_codes");
   const departements = searchParams.get("departements");
   const tranches = searchParams.get("tranches");
-  const perPage = parseInt(searchParams.get("per_page") || "25");
-  const page = parseInt(searchParams.get("page") || "1");
 
   if (!nafCodes || !departements) {
     return Response.json(
@@ -18,7 +16,6 @@ export async function GET(request) {
   const deptList = departements.split(",").map((d) => d.trim()).filter(Boolean);
   const trancheList = tranches ? tranches.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
-  // Helper : fetch avec retry
   async function fetchWithRetry(url, retries = 3, delay = 500) {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
@@ -34,13 +31,10 @@ export async function GET(request) {
   }
 
   try {
-    // Collecte TOUS les résultats depuis l'API SIRENE
-    // On fait les appels séquentiellement pour avoir des résultats stables
-    const allResults = new Map(); // siren → entreprise (dédupliqué)
+    const allResults = new Map();
 
     for (const naf of nafList) {
       for (const dept of deptList) {
-        // On pagine l'API SIRENE pour récupérer plus de résultats
         let apiPage = 1;
         let hasMore = true;
 
@@ -68,10 +62,7 @@ export async function GET(request) {
                 const dirigeants = entreprise.dirigeants || [];
                 const trancheEntreprise = siege.tranche_effectif_salarie || "";
 
-                // Filtre tranche effectif
-                if (trancheList.length > 0 && !trancheList.includes(trancheEntreprise)) {
-                  continue;
-                }
+                if (trancheList.length > 0 && !trancheList.includes(trancheEntreprise)) continue;
 
                 const dirigeantPrincipal = dirigeants[0] || {};
 
@@ -83,13 +74,7 @@ export async function GET(request) {
                     nom: dirigeantPrincipal.nom || "",
                     qualite: dirigeantPrincipal.qualite || "",
                   },
-                  adresse: [
-                    siege.numero_voie,
-                    siege.type_voie,
-                    siege.libelle_voie,
-                    siege.code_postal,
-                    siege.libelle_commune,
-                  ].filter(Boolean).join(" "),
+                  adresse: [siege.numero_voie, siege.type_voie, siege.libelle_voie, siege.code_postal, siege.libelle_commune].filter(Boolean).join(" "),
                   code_postal: siege.code_postal || "",
                   commune: siege.libelle_commune || "",
                   naf_code: siege.activite_principale || "",
@@ -102,43 +87,28 @@ export async function GET(request) {
               }
             }
 
-            // Continuer la pagination si on a eu 25 résultats
-            if (results.length < 25) {
-              hasMore = false;
-            } else {
-              apiPage++;
-            }
+            if (results.length < 25) hasMore = false;
+            else apiPage++;
 
-            // Petite pause pour ne pas surcharger l'API
             await new Promise(r => setTimeout(r, 100));
-
           } catch (err) {
-            console.error(`Erreur pour NAF ${naf} / Dept ${dept} page ${apiPage}:`, err);
+            console.error(`Erreur NAF ${naf} / Dept ${dept} page ${apiPage}:`, err);
             hasMore = false;
           }
         }
       }
     }
 
-    // Convertir en tableau et trier par nom
+    // Retourne TOUT — la pagination se fait côté client
     const allArray = Array.from(allResults.values());
-    const total = allArray.length;
-
-    // Pagination côté serveur
-    const startIndex = (page - 1) * perPage;
-    const endIndex = startIndex + perPage;
-    const pageResults = allArray.slice(startIndex, endIndex);
 
     return Response.json({
-      total,
-      page,
-      per_page: perPage,
-      total_pages: Math.ceil(total / perPage),
-      results: pageResults,
+      total: allArray.length,
+      results: allArray,
     });
 
   } catch (error) {
-    console.error("Erreur recherche entreprises:", error);
+    console.error("Erreur recherche:", error);
     return Response.json({ error: "Erreur lors de la recherche" }, { status: 500 });
   }
 }
