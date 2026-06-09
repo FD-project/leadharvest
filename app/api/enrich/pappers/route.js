@@ -1,68 +1,72 @@
+import { PAPPERS_API_URL } from '@/lib/api';
+
 export async function POST(request) {
-  const apiKey = process.env.PAPPERS_API_KEY;
+  const apiKey = process.env.PAPPERS_API_KEY; // Optionnel
+
+  const body = await request.json().catch(() => null);
+  if (!body?.entreprises || !Array.isArray(body.entreprises)) {
+    return Response.json({ error: 'Format invalide' }, { status: 400 });
+  }
 
   try {
-    const { entreprises } = await request.json();
-
-    if (!entreprises || !Array.isArray(entreprises)) {
-      return Response.json({ error: "Format invalide" }, { status: 400 });
-    }
-
     const results = await Promise.all(
-      entreprises.map(async (entreprise) => {
-        try {
-          // Pappers API - recherche par SIREN
-          // Sans clé API : données limitées mais disponibles
-          const url = apiKey
-            ? `https://api.pappers.fr/v2/entreprise?siren=${entreprise.siren}&api_token=${apiKey}`
-            : `https://api.pappers.fr/v2/entreprise?siren=${entreprise.siren}`;
-
-          const res = await fetch(url);
-
-          if (!res.ok) {
-            return {
-              siren: entreprise.siren,
-              pj_present: false,
-              telephone_pappers: null,
-              email: null,
-            };
-          }
-
-          const data = await res.json();
-
-          // Extraire les contacts disponibles
-          const telephone =
-            data.siege?.telephone ||
-            data.representants?.[0]?.telephone ||
-            null;
-
-          const email =
-            data.siege?.email || data.representants?.[0]?.email || null;
-
-          return {
-            siren: entreprise.siren,
-            pj_present: !!data.siren, // présent dans Pappers = présence annuaire
-            telephone_pappers: telephone,
-            email: email,
-            forme_juridique: data.forme_juridique || null,
-            capital: data.capital || null,
-          };
-        } catch (err) {
-          console.error(`Erreur Pappers pour ${entreprise.siren}:`, err);
-          return {
-            siren: entreprise.siren,
-            pj_present: false,
-            telephone_pappers: null,
-            email: null,
-            error: true,
-          };
-        }
-      })
+      body.entreprises.map((e) => enrichWithPappers(e, apiKey))
     );
-
     return Response.json({ results });
   } catch (error) {
-    console.error("Erreur enrichissement Pappers:", error);
-    return Response.json({ error: "Erreur serveur" }, { status: 500 });
+    console.error('Erreur enrichissement Pappers:', error);
+    return Response.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const EMPTY_RESULT = (siren) => ({
+  siren,
+  pappers_present:   false,
+  telephone_pappers: null,
+  email:             null,
+  forme_juridique:   null,
+  capital:           null,
+});
+
+/**
+ * Enrichit une entreprise via l'API Pappers.
+ * `pappers_present` indique que l'entreprise est référencée dans Pappers
+ * (distinct de "présence Pages Jaunes" — voir scoring).
+ */
+async function enrichWithPappers(entreprise, apiKey) {
+  try {
+    const params = new URLSearchParams({ siren: entreprise.siren });
+    if (apiKey) params.set('api_token', apiKey);
+
+    const res = await fetch(`${PAPPERS_API_URL}?${params}`);
+
+    if (!res.ok) return EMPTY_RESULT(entreprise.siren);
+
+    const data = await res.json();
+
+    // Consolidation des contacts : siège en priorité, puis premier représentant
+    const telephone =
+      data.siege?.telephone         ??
+      data.representants?.[0]?.telephone ??
+      null;
+
+    const email =
+      data.siege?.email             ??
+      data.representants?.[0]?.email ??
+      null;
+
+    return {
+      siren:             entreprise.siren,
+      pappers_present:   !!data.siren,
+      telephone_pappers: telephone,
+      email,
+      forme_juridique:   data.forme_juridique ?? null,
+      capital:           data.capital         ?? null,
+    };
+  } catch (err) {
+    console.error(`Erreur Pappers pour SIREN ${entreprise.siren}:`, err);
+    return { ...EMPTY_RESULT(entreprise.siren), error: true };
   }
 }
