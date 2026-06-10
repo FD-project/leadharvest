@@ -3,12 +3,9 @@
 import { useState } from 'react';
 import { TRANCHES_EFFECTIF } from './data/naf';
 import {
-  calculateScore,
   getScoreCategory,
   SCORE_CATEGORY_LABELS,
   SCORE_CATEGORY_COLORS,
-  SCORE_HOT_THRESHOLD,
-  SCORE_WARM_THRESHOLD,
 } from '@/lib/scoring';
 import { exportEntreprisesCSV } from '@/lib/export';
 import { ENRICH_ROUTES, ENRICH_BATCH_SIZE, postJSON } from '@/lib/api';
@@ -191,36 +188,22 @@ function getTrancheLabel(code) {
   return TRANCHES_EFFECTIF.find((t) => t.code === code)?.label ?? code ?? '—';
 }
 
-function applyScoreFilter(results, filterKey) {
-  if (filterKey === 'all') return results;
-  if (filterKey === 'hot')  return results.filter((r) => r.score >= SCORE_HOT_THRESHOLD);
-  if (filterKey === 'warm') return results.filter((r) => r.score >= SCORE_WARM_THRESHOLD && r.score < SCORE_HOT_THRESHOLD);
-  if (filterKey === 'cold') return results.filter((r) => r.score < SCORE_WARM_THRESHOLD);
-  return results;
-}
-
-function applySort(results, field, direction) {
-  return [...results].sort((a, b) => {
-    const va = a[field] ?? '';
-    const vb = b[field] ?? '';
-    return direction === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
-  });
-}
-
-function withScore(entreprise) {
-  return {
-    ...entreprise,
-    score: entreprise.score ?? calculateScore(entreprise),
-  };
-}
-
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-export default function ResultsTable({ results: pageResults, allResults, isLoading, onResultsUpdate }) {
+export default function ResultsTable({
+  results: pageResults,
+  allResults,
+  filteredTotal,
+  isLoading,
+  onResultsUpdate,
+  // Sort & filtre contrôlés par page.js (s'appliquent sur allResults)
+  sortField,
+  sortDirection,
+  scoreFilter,
+  onSort,
+  onScoreFilter,
+}) {
   const [selected,        setSelected]        = useState(new Set());
-  const [sortField,       setSortField]        = useState('score');
-  const [sortDirection,   setSortDirection]    = useState('desc');
-  const [scoreFilter,     setScoreFilter]      = useState('all');
   const [showEnrichModal, setShowEnrichModal]  = useState(false);
   const [enrichProgress,  setEnrichProgress]   = useState(null);
   const [enrichError,     setEnrichError]      = useState(null);
@@ -302,15 +285,6 @@ export default function ResultsTable({ results: pageResults, allResults, isLoadi
 
   // ── Tri ─────────────────────────────────────────────────────────────────────
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  };
-
   const SortIcon = ({ field }) =>
     sortField !== field ? (
       <span className="text-slate-300 ml-1">↕</span>
@@ -319,10 +293,7 @@ export default function ResultsTable({ results: pageResults, allResults, isLoadi
     );
 
   // ── Données affichées ────────────────────────────────────────────────────────
-
-  const scoredPage  = pageResults.map(withScore);
-  const filtered    = applyScoreFilter(scoredPage, scoreFilter);
-  const sorted      = applySort(filtered, sortField, sortDirection);
+  // pageResults est déjà filtré + trié + paginé par page.js
 
   const allPageSelected  = pageResults.length > 0 && pageResults.every((r) => selected.has(r.siren));
   const somePageSelected = pageResults.some((r) => selected.has(r.siren)) && !allPageSelected;
@@ -354,11 +325,10 @@ export default function ResultsTable({ results: pageResults, allResults, isLoadi
       <div className="bg-white rounded-t-xl border border-slate-200 shadow-sm overflow-hidden">
         <TableHeader
           total={allResults.length}
-          filteredCount={filtered.length}
-          pageCount={pageResults.length}
+          filteredTotal={filteredTotal}
           selectedCount={selected.size}
           scoreFilter={scoreFilter}
-          onScoreFilter={setScoreFilter}
+          onScoreFilter={onScoreFilter}
           onEnrich={() => setShowEnrichModal(true)}
           onExport={() => exportEntreprisesCSV(allResults)}
         />
@@ -383,19 +353,19 @@ export default function ResultsTable({ results: pageResults, allResults, isLoadi
                     className="accent-amber-500 cursor-pointer w-4 h-4"
                   />
                 </th>
-                <SortableHeader label="Entreprise" field="nom"      onSort={handleSort} SortIcon={SortIcon} />
+                <SortableHeader label="Entreprise" field="nom"      onSort={onSort} SortIcon={SortIcon} />
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Dirigeant</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Adresse</th>
-                <SortableHeader label="NAF"        field="naf_code" onSort={handleSort} SortIcon={SortIcon} />
+                <SortableHeader label="NAF"        field="naf_code" onSort={onSort} SortIcon={SortIcon} />
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Effectif</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Téléphone</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Web / GMB</th>
-                <SortableHeader label="Score"      field="score"    onSort={handleSort} SortIcon={SortIcon} />
+                <SortableHeader label="Score"      field="score"    onSort={onSort} SortIcon={SortIcon} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {sorted.map((e, i) => (
+              {pageResults.map((e, i) => (
                 <EntrepriseRow
                   key={e.siren || i}
                   entreprise={e}
@@ -420,16 +390,17 @@ export default function ResultsTable({ results: pageResults, allResults, isLoadi
 
 // ─── Sous-composants tableau ──────────────────────────────────────────────────
 
-function TableHeader({ total, filteredCount, pageCount, selectedCount, scoreFilter, onScoreFilter, onEnrich, onExport }) {
+function TableHeader({ total, filteredTotal, selectedCount, scoreFilter, onScoreFilter, onEnrich, onExport }) {
+  const isFiltered = filteredTotal !== total;
   return (
     <div className="px-6 py-4 border-b border-slate-100">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-semibold text-slate-800">
-            {total} entreprise{total > 1 ? 's' : ''} trouvée{total > 1 ? 's' : ''}
-            {filteredCount !== pageCount && (
-              <span className="text-slate-400 font-normal"> · {filteredCount} sur cette page</span>
-            )}
+            {isFiltered
+              ? <>{filteredTotal} résultat{filteredTotal > 1 ? 's' : ''} <span className="text-slate-400 font-normal">sur {total} entreprises</span></>
+              : <>{total} entreprise{total > 1 ? 's' : ''} trouvée{total > 1 ? 's' : ''}</>
+            }
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             {selectedCount > 0

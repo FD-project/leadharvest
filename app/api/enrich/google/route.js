@@ -17,6 +17,9 @@ export async function POST(request) {
   if (!body?.entreprises || !Array.isArray(body.entreprises)) {
     return Response.json({ error: 'Format invalide' }, { status: 400 });
   }
+  if (body.entreprises.length > 10) {
+    return Response.json({ error: 'Batch trop grand (max 10 par appel)' }, { status: 400 });
+  }
 
   try {
     const results = await Promise.all(
@@ -42,41 +45,36 @@ const EMPTY_RESULT = (siren) => ({
 
 /**
  * Enrichit une entreprise via Google Maps Places.
- * Un seul appel si `findplacefromtext` retourne les champs nécessaires,
- * sinon un second appel `place/details` pour compléter.
+ *
+ * Appel 1 — findplacefromtext → récupère place_id (Basic Data).
+ *   Note : formatted_phone_number et website ne sont PAS disponibles dans
+ *   findplacefromtext, seulement dans place/details (Contact Data).
+ *
+ * Appel 2 — place/details → récupère téléphone, site, note, nb avis.
  */
 async function enrichWithGoogleMaps(entreprise, apiKey) {
   try {
     const query = [entreprise.nom, entreprise.commune].filter(Boolean).join(' ');
 
-    // Champs demandés directement dans findplacefromtext pour éviter un 2e appel
+    // Appel 1 : trouver le place_id
     const findParams = new URLSearchParams({
-      input:      query,
-      inputtype:  'textquery',
-      fields:     'place_id,formatted_phone_number,website,rating,user_ratings_total',
-      key:        apiKey,
+      input:     query,
+      inputtype: 'textquery',
+      fields:    'place_id',
+      key:       apiKey,
     });
 
     const findRes  = await fetch(`${GOOGLE_PLACES_FIND_URL}?${findParams}`);
     const findData = await findRes.json();
 
-    const candidate = findData.candidates?.[0];
-    if (!candidate || findData.status !== 'OK') {
+    const placeId = findData.candidates?.[0]?.place_id;
+    if (!placeId || findData.status !== 'OK') {
       return EMPTY_RESULT(entreprise.siren);
     }
 
-    // Si les champs de contact sont déjà présents, pas besoin d'un 2e appel
-    if (candidate.formatted_phone_number || candidate.website) {
-      return buildGoogleResult(entreprise.siren, candidate);
-    }
-
-    // Sinon, appel details pour compléter (place_id requis)
-    if (!candidate.place_id) {
-      return { ...EMPTY_RESULT(entreprise.siren), gmb_present: true };
-    }
-
+    // Appel 2 : récupérer les données de contact (Contact Data + Basic Data)
     const detailParams = new URLSearchParams({
-      place_id: candidate.place_id,
+      place_id: placeId,
       fields:   'formatted_phone_number,website,rating,user_ratings_total',
       key:      apiKey,
     });
@@ -85,10 +83,11 @@ async function enrichWithGoogleMaps(entreprise, apiKey) {
     const detailData = await detailRes.json();
 
     if (detailData.status !== 'OK' || !detailData.result) {
+      // Fiche GMB existe mais pas de détails récupérables
       return { ...EMPTY_RESULT(entreprise.siren), gmb_present: true };
     }
 
-    return buildGoogleResult(entreprise.siren, detailData.result, true);
+    return buildGoogleResult(entreprise.siren, detailData.result);
   } catch (err) {
     console.error(`Erreur Google Maps pour SIREN ${entreprise.siren}:`, err);
     return { ...EMPTY_RESULT(entreprise.siren), error: true };
@@ -97,6 +96,7 @@ async function enrichWithGoogleMaps(entreprise, apiKey) {
 
 /**
  * Construit le résultat d'enrichissement Google Maps depuis une réponse Places.
+ * gmb_present = true dès qu'on a trouvé un place_id.
  */
 function buildGoogleResult(siren, placeData, gmb_present = true) {
   return {

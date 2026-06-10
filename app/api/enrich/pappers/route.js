@@ -7,6 +7,9 @@ export async function POST(request) {
   if (!body?.entreprises || !Array.isArray(body.entreprises)) {
     return Response.json({ error: 'Format invalide' }, { status: 400 });
   }
+  if (body.entreprises.length > 10) {
+    return Response.json({ error: 'Batch trop grand (max 10 par appel)' }, { status: 400 });
+  }
 
   try {
     const results = await Promise.all(

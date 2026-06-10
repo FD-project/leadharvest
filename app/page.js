@@ -4,32 +4,63 @@ import { useState, useMemo } from 'react';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
 import Pagination, { PER_PAGE_ALL } from './components/Pagination';
+import { withScore, applyScoreFilter, applySort } from '@/lib/scoring';
 
 export default function Home() {
-  const [allResults, setAllResults] = useState([]); // TOUS les résultats en mémoire
+  const [allResults, setAllResults] = useState([]); // TOUS les résultats bruts en mémoire
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // Sort & filtre — sur l'ensemble des résultats (pas par page)
+  const [sortField,     setSortField]     = useState('score');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [scoreFilter,   setScoreFilter]   = useState('all');
 
   // Pagination — 100% client
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
 
-  // Calcul pagination locale — aucun appel API
+  // Pipeline : score → filtre → tri → puis pagination
+  const processedResults = useMemo(() => {
+    const scored   = allResults.map(withScore);
+    const filtered = applyScoreFilter(scored, scoreFilter);
+    return applySort(filtered, sortField, sortDirection);
+  }, [allResults, scoreFilter, sortField, sortDirection]);
+
   // PER_PAGE_ALL = Infinity → on retourne tout le tableau
-  const totalPages = perPage === PER_PAGE_ALL ? 1 : Math.ceil(allResults.length / perPage);
+  const totalPages = perPage === PER_PAGE_ALL ? 1 : Math.ceil(processedResults.length / perPage);
   const pageResults = useMemo(() => {
-    if (perPage === PER_PAGE_ALL) return allResults;
+    if (perPage === PER_PAGE_ALL) return processedResults;
     const start = (page - 1) * perPage;
-    return allResults.slice(start, start + perPage);
-  }, [allResults, page, perPage]);
+    return processedResults.slice(start, start + perPage);
+  }, [processedResults, page, perPage]);
+
+  // Handlers sort/filtre — reset page à chaque changement
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+    setPage(1);
+  };
+
+  const handleScoreFilter = (filter) => {
+    setScoreFilter(filter);
+    setPage(1);
+  };
 
   // Un seul appel API au lancement de la recherche
   const handleSearch = async ({ nafCodes, departements, tranches }) => {
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
-    setPage(1); // Reset page
+    setPage(1);
+    setScoreFilter('all'); // Reset filtre à chaque nouvelle recherche
+    setSortField('score');
+    setSortDirection('desc');
 
     try {
       const params = new URLSearchParams({
@@ -158,8 +189,14 @@ export default function Home() {
                 <ResultsTable
                   results={pageResults}
                   allResults={allResults}
+                  filteredTotal={processedResults.length}
                   isLoading={isLoading}
                   onResultsUpdate={handleResultsUpdate}
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  scoreFilter={scoreFilter}
+                  onSort={handleSort}
+                  onScoreFilter={handleScoreFilter}
                 />
                 {!isLoading && allResults.length > 0 && (
                   <Pagination
