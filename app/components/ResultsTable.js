@@ -36,8 +36,8 @@ function ScoreBadge({ score, enriched }) {
   );
 }
 
-function EnrichModal({ count, onClose, onLaunch }) {
-  const [sources, setSources] = useState({ google: true, pappers: true });
+function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
+  const [sources, setSources] = useState({ google: true, pappers: true, scrape: false });
 
   const toggle = (key) => setSources((prev) => ({ ...prev, [key]: !prev[key] }));
   const hasSourceSelected = Object.values(sources).some(Boolean);
@@ -82,7 +82,21 @@ function EnrichModal({ count, onClose, onLaunch }) {
             label="Pappers.fr"
             badge="Gratuit"
             badgeColor="text-green-600"
-            description="Email · Téléphone · Forme juridique"
+            description="Email officiel · Téléphone · Forme juridique"
+          />
+
+          <SourceOption
+            checked={sources.scrape}
+            onChange={() => toggle('scrape')}
+            label="Scraping site web"
+            badge="Gratuit"
+            badgeColor="text-green-600"
+            description={
+              sitesCount > 0
+                ? `Email extrait du site web · ${sitesCount} site${sitesCount > 1 ? 's' : ''} disponible${sitesCount > 1 ? 's' : ''}`
+                : 'Email extrait du site web · Enrichissez d\'abord avec Google Maps'
+            }
+            disabled={sitesCount === 0}
           />
         </div>
 
@@ -119,17 +133,22 @@ function EnrichModal({ count, onClose, onLaunch }) {
   );
 }
 
-function SourceOption({ checked, onChange, label, badge, badgeColor = 'text-slate-500', description }) {
+function SourceOption({ checked, onChange, label, badge, badgeColor = 'text-slate-500', description, disabled = false }) {
   return (
     <label
-      className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-        checked ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+      className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${
+        disabled
+          ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
+          : checked
+            ? 'border-blue-500 bg-blue-50 cursor-pointer'
+            : 'border-slate-200 hover:border-slate-300 cursor-pointer'
       }`}
     >
       <input
         type="checkbox"
         checked={checked}
         onChange={onChange}
+        disabled={disabled}
         className="mt-0.5 accent-blue-600"
       />
       <div className="flex-1">
@@ -143,25 +162,36 @@ function SourceOption({ checked, onChange, label, badge, badgeColor = 'text-slat
   );
 }
 
-function ProgressModal({ current, total, source }) {
+function ProgressModal({ current, total, source, found = 0 }) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-  const sourceLabel = source === 'google' ? '🗺️ Google Maps' : '📋 Pappers.fr';
+  const sourceLabel =
+    source === 'google' ? '🗺️ Google Maps' :
+    source === 'scrape' ? '🌐 Scraping sites web' :
+    '📋 Pappers.fr';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
-        <div className="text-4xl mb-4">⚡</div>
+        <div className="text-4xl mb-4">{source === 'scrape' ? '🌐' : '⚡'}</div>
         <h2 className="font-bold text-slate-900 text-lg mb-1">Enrichissement en cours</h2>
-        <p className="text-slate-500 text-sm mb-6">
-          {sourceLabel} — {current}/{total}
+        <p className="text-slate-500 text-sm mb-1">{sourceLabel}</p>
+        <p className="text-slate-400 text-xs mb-5">
+          {current} / {total} entreprise{total > 1 ? 's' : ''} traitée{total > 1 ? 's' : ''}
         </p>
+
         <div className="w-full bg-slate-200 rounded-full h-3 mb-3">
           <div
-            className="h-3 rounded-full bg-amber-500 transition-all duration-300"
+            className="h-3 rounded-full bg-amber-500 transition-all duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>
-        <p className="text-sm font-semibold text-slate-700">{pct}%</p>
+        <p className="text-sm font-semibold text-slate-700 mb-3">{pct}%</p>
+
+        {source === 'scrape' && (
+          <div className={`text-sm font-semibold transition-colors ${found > 0 ? 'text-green-600' : 'text-slate-400'}`}>
+            ✉️ {found} email{found > 1 ? 's' : ''} trouvé{found > 1 ? 's' : ''}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -230,29 +260,44 @@ export default function ResultsTable({
 
     const applyEnrichResults = (enrichResults) => {
       for (const enriched of enrichResults) {
-        updated = updated.map((r) =>
-          r.siren === enriched.siren
-            ? { ...r, ...enriched, enriched: true, score: calculateScore({ ...r, ...enriched }) }
-            : r
-        );
+        updated = updated.map((r) => {
+          if (r.siren !== enriched.siren) return r;
+          const merged = { ...r, ...enriched, enriched: true };
+          // L'email scrappé ne remplace l'email Pappers que s'il n'en existe pas encore
+          if (enriched.email_website && !r.email) {
+            merged.email = enriched.email_website;
+          }
+          merged.score = calculateScore(merged);
+          return merged;
+        });
       }
     };
 
-    const runSource = async (sourceKey, routeUrl) => {
-      for (let i = 0; i < toEnrich.length; i += ENRICH_BATCH_SIZE) {
-        setEnrichProgress({ current: i, total: toEnrich.length, source: sourceKey });
-        const batch = toEnrich.slice(i, i + ENRICH_BATCH_SIZE);
+    // Lance une source par batch, avec compteur "found" pour le scraping
+    const runSource = async (sourceKey, routeUrl, items = toEnrich) => {
+      if (items.length === 0) return;
+      let found = 0;
+
+      for (let i = 0; i < items.length; i += ENRICH_BATCH_SIZE) {
+        setEnrichProgress({ current: i, total: items.length, source: sourceKey, found });
+        const batch = items.slice(i, i + ENRICH_BATCH_SIZE);
         try {
           const data = await postJSON(routeUrl, { entreprises: batch });
-          if (data.results) applyEnrichResults(data.results);
+          if (data.results) {
+            if (sourceKey === 'scrape') {
+              found += data.results.filter((r) => r.email_website).length;
+            }
+            applyEnrichResults(data.results);
+          }
         } catch (err) {
           console.error(`Enrichissement ${sourceKey} échoué:`, err);
           hasError = true;
         }
         setEnrichProgress({
-          current: Math.min(i + ENRICH_BATCH_SIZE, toEnrich.length),
-          total: toEnrich.length,
-          source: sourceKey,
+          current: Math.min(i + ENRICH_BATCH_SIZE, items.length),
+          total:   items.length,
+          source:  sourceKey,
+          found,
         });
         onResultsUpdate([...updated]);
       }
@@ -260,6 +305,12 @@ export default function ResultsTable({
 
     if (sources.google)  await runSource('google',  ENRICH_ROUTES.google);
     if (sources.pappers) await runSource('pappers', ENRICH_ROUTES.pappers);
+
+    // Scraping : seulement les entreprises qui ont un site web
+    if (sources.scrape) {
+      const withSite = toEnrich.filter((r) => r.site_web);
+      await runSource('scrape', ENRICH_ROUTES.scrape, withSite);
+    }
 
     setEnrichProgress(null);
     setSelected(new Set());
@@ -323,6 +374,7 @@ export default function ResultsTable({
       {showEnrichModal && (
         <EnrichModal
           count={selected.size}
+          sitesCount={allResults.filter((r) => selected.has(r.siren) && r.site_web).length}
           onClose={() => setShowEnrichModal(false)}
           onLaunch={handleEnrich}
         />
@@ -332,6 +384,7 @@ export default function ResultsTable({
           current={enrichProgress.current}
           total={enrichProgress.total}
           source={enrichProgress.source}
+          found={enrichProgress.found ?? 0}
         />
       )}
 
