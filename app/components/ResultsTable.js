@@ -10,6 +10,121 @@ import {
 import { exportEntreprisesCSV } from '@/lib/export';
 import { ENRICH_ROUTES, ENRICH_BATCH_SIZE, postJSON } from '@/lib/api';
 
+// ─── Helpers tooltip scoring ──────────────────────────────────────────────────
+
+function getAgeLabel(dateCreation) {
+  if (!dateCreation) return { label: 'Date inconnue', detail: '—' };
+  const years = (Date.now() - new Date(dateCreation).getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+  const y = years.toFixed(1);
+  if (years < 1.5)  return { label: `${y} an${years >= 1 ? 's' : ''}`,  detail: 'Trop jeune — fragile' };
+  if (years < 3)    return { label: `${y} ans`, detail: 'En développement' };
+  if (years < 15)   return { label: `${y} ans`, detail: '✓ Zone idéale (3-15 ans)' };
+  return              { label: `${y} ans`, detail: 'Ancienne — peut être résistante' };
+}
+
+function getEffectifDetail(code) {
+  const map = {
+    '03': '6-9 salariés', '11': '10-19 sal.', '02': '3-5 sal.',
+    '12': '20-49 sal.',   '01': '1-2 sal.',   '21': '50-99 sal.',
+    '22': '100-199 sal.', '00': '0 salarié',  'NN': 'Non employeur',
+  };
+  return map[code] ?? (code ? code : 'Inconnu');
+}
+
+function getFormeLabel(code) {
+  if (!code) return 'Inconnue';
+  const map = {
+    '5499': 'SARL', '5308': 'EURL', '5710': 'SAS', '5720': 'SASU',
+    '5800': 'SA',   '5815': 'SA (directoire)',
+  };
+  if (map[code]) return map[code];
+  if (String(code).startsWith('1') || String(code).startsWith('9')) return `EI / Micro (${code})`;
+  if (String(code).startsWith('5')) return `Société (${code})`;
+  return code;
+}
+
+function ScoreTooltip({ entreprise, subscores }) {
+  const age = getAgeLabel(entreprise.date_creation);
+  const hasPhone = !!(entreprise.telephone ?? entreprise.telephone_pappers);
+
+  return (
+    <div className="absolute z-50 right-0 bottom-full mb-2 w-68 bg-slate-900 text-white rounded-xl p-4 shadow-2xl text-xs pointer-events-none"
+      style={{ width: '272px' }}>
+      {/* Flèche */}
+      <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-slate-900 rotate-45" />
+
+      <p className="font-bold text-center text-sm mb-3 text-slate-100">Détail du score</p>
+
+      {/* Adéquation */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold text-blue-300">🎯 Adéquation</span>
+          <span className="font-bold text-blue-200">{subscores.adequation}/100</span>
+        </div>
+        <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-0.5 text-slate-400">
+          <div className="flex justify-between">
+            <span>Âge de l'entreprise</span>
+            <span className="text-slate-300 font-medium">{age.label}</span>
+          </div>
+          <div className="text-slate-500 text-[10px]">{age.detail}</div>
+        </div>
+      </div>
+
+      {/* Capacité */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold text-teal-300">💰 Capacité</span>
+          <span className="font-bold text-teal-200">{subscores.capacite}/100</span>
+        </div>
+        <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-1 text-slate-400">
+          <div className="flex justify-between">
+            <span>Effectif</span>
+            <span className="text-slate-300">{getEffectifDetail(entreprise.tranche_effectif)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Forme juridique</span>
+            <span className="text-slate-300">{getFormeLabel(entreprise.nature_juridique)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Chiffre d'affaires</span>
+            <span className={entreprise.ca ? 'text-slate-300' : 'text-slate-500'}>
+              {entreprise.ca != null ? `${entreprise.ca.toLocaleString('fr-FR')} €` : 'Non disponible'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Joignabilité */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold text-amber-300">📞 Joignabilité</span>
+          <span className="font-bold text-amber-200">{subscores.joignabilite}/100</span>
+        </div>
+        <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-1 text-slate-400">
+          <div className="flex justify-between">
+            <span>Dirigeant identifié</span>
+            <span className={entreprise.dirigeant?.nom ? 'text-green-400' : 'text-red-400'}>
+              {entreprise.dirigeant?.nom ? '✓ Oui (+30)' : '✗ Non (+0)'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Téléphone</span>
+            <span className={hasPhone ? 'text-green-400' : entreprise.enriched ? 'text-red-400' : 'text-slate-500'}>
+              {hasPhone ? '✓ Trouvé (+40)' : entreprise.enriched ? '✗ Absent (+0)' : '? Non enrichi'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Email</span>
+            <span className={entreprise.email ? 'text-green-400' : entreprise.enriched ? 'text-red-400' : 'text-slate-500'}>
+              {entreprise.email ? '✓ Trouvé (+30)' : entreprise.enriched ? '✗ Absent (+0)' : '? Non enrichi'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sous-composants ──────────────────────────────────────────────────────────
 
 const SUBSCORE_STYLES = [
@@ -18,13 +133,21 @@ const SUBSCORE_STYLES = [
   { key: 'joignabilite', label: 'Joi.',  color: 'bg-amber-400' },
 ];
 
-function ScoreBadge({ score, subscores, enriched }) {
+function ScoreBadge({ score, subscores, enriched, entreprise }) {
+  const [showTooltip, setShowTooltip] = useState(false);
   const category = getScoreCategory(score);
   const { badge, bar } = SCORE_CATEGORY_COLORS[category];
   const label = SCORE_CATEGORY_LABELS[category];
 
   return (
-    <div className="flex flex-col gap-1 min-w-[110px]">
+    <div
+      className="relative flex flex-col gap-1 min-w-[110px] cursor-help"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      {showTooltip && subscores && entreprise && (
+        <ScoreTooltip entreprise={entreprise} subscores={subscores} />
+      )}
       {/* Badge principal */}
       <div className="flex items-center gap-1">
         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge}`}>
@@ -746,7 +869,7 @@ function EntrepriseRow({ entreprise: e, selected, onToggle }) {
       </td>
 
       <td className="px-4 py-3">
-        <ScoreBadge score={e.score} subscores={e.subscores} enriched={e.enriched} />
+        <ScoreBadge score={e.score} subscores={e.subscores} enriched={e.enriched} entreprise={e} />
       </td>
     </tr>
   );
