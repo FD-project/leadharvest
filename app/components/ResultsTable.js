@@ -178,10 +178,17 @@ function EnrichErrorBanner({ message, onDismiss }) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const SCORE_FILTER_OPTIONS = [
+  { key: 'all',  label: 'Tous' },
+  { key: 'hot',  label: '🔥 Chaud' },
+  { key: 'warm', label: '🟡 Tiède' },
+  { key: 'cold', label: '🟢 Froid' },
+];
+
+const ENRICH_FILTER_OPTIONS = [
   { key: 'all',   label: 'Tous' },
-  { key: 'hot',   label: '🔥 Chaud' },
-  { key: 'warm',  label: '🟡 Tiède' },
-  { key: 'cold',  label: '🟢 Froid' },
+  { key: 'phone', label: '📞 Tél.' },
+  { key: 'email', label: '✉️ Email' },
+  { key: 'both',  label: '📞 + ✉️ Les deux' },
 ];
 
 function getTrancheLabel(code) {
@@ -196,12 +203,14 @@ export default function ResultsTable({
   filteredTotal,
   isLoading,
   onResultsUpdate,
-  // Sort & filtre contrôlés par page.js (s'appliquent sur allResults)
+  // Sort & filtres contrôlés par page.js (s'appliquent sur allResults)
   sortField,
   sortDirection,
   scoreFilter,
+  enrichFilter,
   onSort,
   onScoreFilter,
+  onEnrichFilter,
 }) {
   const [selected,        setSelected]        = useState(new Set());
   const [showEnrichModal, setShowEnrichModal]  = useState(false);
@@ -328,7 +337,9 @@ export default function ResultsTable({
           filteredTotal={filteredTotal}
           selectedCount={selected.size}
           scoreFilter={scoreFilter}
+          enrichFilter={enrichFilter}
           onScoreFilter={onScoreFilter}
+          onEnrichFilter={onEnrichFilter}
           onEnrich={() => setShowEnrichModal(true)}
           onExport={() => exportEntreprisesCSV(allResults)}
         />
@@ -390,10 +401,11 @@ export default function ResultsTable({
 
 // ─── Sous-composants tableau ──────────────────────────────────────────────────
 
-function TableHeader({ total, filteredTotal, selectedCount, scoreFilter, onScoreFilter, onEnrich, onExport }) {
+function TableHeader({ total, filteredTotal, selectedCount, scoreFilter, enrichFilter, onScoreFilter, onEnrichFilter, onEnrich, onExport }) {
   const isFiltered = filteredTotal !== total;
   return (
-    <div className="px-6 py-4 border-b border-slate-100">
+    <div className="px-6 py-4 border-b border-slate-100 space-y-3">
+      {/* Ligne 1 : compteur + actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-semibold text-slate-800">
@@ -409,7 +421,6 @@ function TableHeader({ total, filteredTotal, selectedCount, scoreFilter, onScore
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <ScoreFilterBar value={scoreFilter} onChange={onScoreFilter} />
           {selectedCount > 0 && (
             <button
               onClick={onEnrich}
@@ -426,14 +437,27 @@ function TableHeader({ total, filteredTotal, selectedCount, scoreFilter, onScore
           </button>
         </div>
       </div>
+
+      {/* Ligne 2 : filtres */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-400 font-medium">Score</span>
+          <ScoreFilterBar value={scoreFilter} onChange={onScoreFilter} />
+        </div>
+        <div className="w-px h-4 bg-slate-200" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-400 font-medium">Contact</span>
+          <EnrichFilterBar value={enrichFilter} onChange={onEnrichFilter} />
+        </div>
+      </div>
     </div>
   );
 }
 
-function ScoreFilterBar({ value, onChange }) {
+function FilterBar({ options, value, onChange }) {
   return (
     <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
-      {SCORE_FILTER_OPTIONS.map((f) => (
+      {options.map((f) => (
         <button
           key={f.key}
           onClick={() => onChange(f.key)}
@@ -446,6 +470,14 @@ function ScoreFilterBar({ value, onChange }) {
       ))}
     </div>
   );
+}
+
+function ScoreFilterBar({ value, onChange }) {
+  return <FilterBar options={SCORE_FILTER_OPTIONS} value={value} onChange={onChange} />;
+}
+
+function EnrichFilterBar({ value, onChange }) {
+  return <FilterBar options={ENRICH_FILTER_OPTIONS} value={value} onChange={onChange} />;
 }
 
 function SortableHeader({ label, field, onSort, SortIcon }) {

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
 import Pagination, { PER_PAGE_ALL } from './components/Pagination';
-import { withScore, applyScoreFilter, applySort } from '@/lib/scoring';
+import { withScore, applyScoreFilter, applyEnrichFilter, applySort } from '@/lib/scoring';
 
 export default function Home() {
   const [allResults, setAllResults] = useState([]); // TOUS les résultats bruts en mémoire
@@ -12,21 +12,23 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Sort & filtre — sur l'ensemble des résultats (pas par page)
+  // Sort & filtres — sur l'ensemble des résultats (pas par page)
   const [sortField,     setSortField]     = useState('score');
   const [sortDirection, setSortDirection] = useState('desc');
   const [scoreFilter,   setScoreFilter]   = useState('all');
+  const [enrichFilter,  setEnrichFilter]  = useState('all');
 
   // Pagination — 100% client
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
 
-  // Pipeline : score → filtre → tri → puis pagination
+  // Pipeline : score → filtre score → filtre enrichissement → tri → pagination
   const processedResults = useMemo(() => {
-    const scored   = allResults.map(withScore);
-    const filtered = applyScoreFilter(scored, scoreFilter);
-    return applySort(filtered, sortField, sortDirection);
-  }, [allResults, scoreFilter, sortField, sortDirection]);
+    const scored        = allResults.map(withScore);
+    const byScore       = applyScoreFilter(scored, scoreFilter);
+    const byEnrich      = applyEnrichFilter(byScore, enrichFilter);
+    return applySort(byEnrich, sortField, sortDirection);
+  }, [allResults, scoreFilter, enrichFilter, sortField, sortDirection]);
 
   // PER_PAGE_ALL = Infinity → on retourne tout le tableau
   const totalPages = perPage === PER_PAGE_ALL ? 1 : Math.ceil(processedResults.length / perPage);
@@ -52,13 +54,19 @@ export default function Home() {
     setPage(1);
   };
 
+  const handleEnrichFilter = (filter) => {
+    setEnrichFilter(filter);
+    setPage(1);
+  };
+
   // Un seul appel API au lancement de la recherche
   const handleSearch = async ({ nafCodes, departements, tranches }) => {
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
     setPage(1);
-    setScoreFilter('all'); // Reset filtre à chaque nouvelle recherche
+    setScoreFilter('all');
+    setEnrichFilter('all');
     setSortField('score');
     setSortDirection('desc');
 
@@ -195,8 +203,10 @@ export default function Home() {
                   sortField={sortField}
                   sortDirection={sortDirection}
                   scoreFilter={scoreFilter}
+                  enrichFilter={enrichFilter}
                   onSort={handleSort}
                   onScoreFilter={handleScoreFilter}
+                  onEnrichFilter={handleEnrichFilter}
                 />
                 {!isLoading && allResults.length > 0 && (
                   <Pagination
