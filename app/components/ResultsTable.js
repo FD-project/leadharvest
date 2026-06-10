@@ -477,7 +477,12 @@ export default function ResultsTable({
           onScoreFilter={onScoreFilter}
           onEnrichFilter={onEnrichFilter}
           onEnrich={() => setShowEnrichModal(true)}
-          onExport={() => exportEntreprisesCSV(allResults)}
+          onExport={() => {
+              const toExport = selected.size > 0
+                ? allResults.filter((r) => selected.has(r.siren))
+                : allResults;
+              exportEntreprisesCSV(toExport);
+            }}
         />
 
         {enrichError && (
@@ -575,7 +580,9 @@ function TableHeader({ total, filteredTotal, selectedCount, scoreFilter, enrichF
             onClick={onExport}
             className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
           >
-            📥 Export CSV ({total})
+            {selectedCount > 0
+              ? `📥 Exporter la sélection (${selectedCount})`
+              : `📥 Exporter tout (${total})`}
           </button>
         </div>
       </div>
