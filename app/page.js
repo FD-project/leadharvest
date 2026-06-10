@@ -4,13 +4,17 @@ import { useState, useMemo } from 'react';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
 import Pagination, { PER_PAGE_ALL } from './components/Pagination';
-import { withScore, applyScoreFilter, applyEnrichFilter, applySort } from '@/lib/scoring';
+import { withScore, applyScoreFilter, applyEnrichFilter, applySort, DEFAULT_PROFILE } from '@/lib/scoring';
+import ScoringProfile from './components/ScoringProfile';
 
 export default function Home() {
   const [allResults, setAllResults] = useState([]); // TOUS les résultats bruts en mémoire
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // Profil de pondération du score (recalcul temps réel)
+  const [scoringProfile, setScoringProfile] = useState(DEFAULT_PROFILE);
 
   // Sort & filtres — sur l'ensemble des résultats (pas par page)
   const [sortField,     setSortField]     = useState('score');
@@ -22,13 +26,13 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
 
-  // Pipeline : score → filtre score → filtre enrichissement → tri → pagination
+  // Pipeline : score (avec profil) → filtre score → filtre enrichissement → tri
   const processedResults = useMemo(() => {
-    const scored        = allResults.map(withScore);
-    const byScore       = applyScoreFilter(scored, scoreFilter);
-    const byEnrich      = applyEnrichFilter(byScore, enrichFilter);
+    const scored   = allResults.map((e) => withScore(e, scoringProfile));
+    const byScore  = applyScoreFilter(scored, scoreFilter);
+    const byEnrich = applyEnrichFilter(byScore, enrichFilter);
     return applySort(byEnrich, sortField, sortDirection);
-  }, [allResults, scoreFilter, enrichFilter, sortField, sortDirection]);
+  }, [allResults, scoreFilter, enrichFilter, sortField, sortDirection, scoringProfile]);
 
   // PER_PAGE_ALL = Infinity → on retourne tout le tableau
   const totalPages = perPage === PER_PAGE_ALL ? 1 : Math.ceil(processedResults.length / perPage);
@@ -161,6 +165,11 @@ export default function Home() {
                   <span className="text-xs text-slate-600">Pappers.fr</span>
                 </div>
               </div>
+            </div>
+
+            {/* Profil de scoring */}
+            <div className="mt-4">
+              <ScoringProfile profile={scoringProfile} onChange={setScoringProfile} />
             </div>
           </div>
 

@@ -117,6 +117,11 @@ function normalizeEntreprise(raw) {
   const dirigeants = raw.dirigeants  ?? [];
   const dirigeant  = dirigeants[0]   ?? {};
 
+  // CA depuis la dernière année financière disponible dans SIRENE
+  const finances   = raw.finances    ?? {};
+  const latestYear = Object.keys(finances).sort().pop();
+  const latestFin  = latestYear ? finances[latestYear] : {};
+
   return {
     siren:           raw.siren ?? '',
     nom:             raw.nom_raison_sociale ?? raw.nom_complet ?? '',
@@ -138,6 +143,10 @@ function normalizeEntreprise(raw) {
     naf_libelle:      siege.libelle_activite_principale ?? '',
     tranche_effectif: siege.tranche_effectif_salarie    ?? '',
     date_creation:    raw.date_creation                 ?? '',
+    // Données financières & juridiques — scoring v2 (disponibles avant enrichissement)
+    nature_juridique: raw.nature_juridique              ?? '',
+    ca:               latestFin.ca                      ?? null,
+    resultat_net:     latestFin.resultat_net             ?? null,
     latitude:         siege.latitude                    ?? null,
     longitude:        siege.longitude                   ?? null,
   };

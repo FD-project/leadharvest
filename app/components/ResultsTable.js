@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { TRANCHES_EFFECTIF } from './data/naf';
 import {
-  calculateScore,
   getScoreCategory,
   SCORE_CATEGORY_LABELS,
   SCORE_CATEGORY_COLORS,
@@ -13,25 +12,56 @@ import { ENRICH_ROUTES, ENRICH_BATCH_SIZE, postJSON } from '@/lib/api';
 
 // ─── Sous-composants ──────────────────────────────────────────────────────────
 
-function ScoreBadge({ score, enriched }) {
+const SUBSCORE_STYLES = [
+  { key: 'adequation',   label: 'Adéq', color: 'bg-blue-400'  },
+  { key: 'capacite',     label: 'Cap.',  color: 'bg-teal-400'  },
+  { key: 'joignabilite', label: 'Joi.',  color: 'bg-amber-400' },
+];
+
+function ScoreBadge({ score, subscores, enriched }) {
   const category = getScoreCategory(score);
   const { badge, bar } = SCORE_CATEGORY_COLORS[category];
   const label = SCORE_CATEGORY_LABELS[category];
 
   return (
-    <div className="flex flex-col gap-1 min-w-[90px]">
+    <div className="flex flex-col gap-1 min-w-[110px]">
+      {/* Badge principal */}
       <div className="flex items-center gap-1">
         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge}`}>
+          {!enriched && <span className="opacity-50 mr-0.5 text-[10px]">~</span>}
           {label} {score}
         </span>
-        {enriched && <span title="Données enrichies">✨</span>}
+        {enriched && <span title="Données enrichies" className="text-xs">✨</span>}
       </div>
+
+      {/* Barre principale */}
       <div className="w-full bg-slate-200 rounded-full h-1.5">
         <div
           className={`h-1.5 rounded-full transition-all duration-700 ${bar}`}
           style={{ width: `${score}%` }}
         />
       </div>
+
+      {/* Sous-scores */}
+      {subscores && (
+        <div className="flex flex-col gap-0.5 mt-0.5">
+          {SUBSCORE_STYLES.map(({ key, label: slabel, color }) => {
+            const val = subscores[key] ?? 0;
+            return (
+              <div key={key} className="flex items-center gap-1">
+                <span className="text-[9px] text-slate-400 w-6 shrink-0">{slabel}</span>
+                <div className="flex-1 bg-slate-100 rounded-full h-1 overflow-hidden">
+                  <div
+                    className={`h-1 rounded-full transition-all duration-500 ${color}`}
+                    style={{ width: `${val}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-slate-400 w-5 text-right shrink-0">{val}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -267,7 +297,7 @@ export default function ResultsTable({
           if (enriched.email_website && !r.email) {
             merged.email = enriched.email_website;
           }
-          merged.score = calculateScore(merged);
+          // Score recalculé par page.js via processedResults (profil de pondération inclus)
           return merged;
         });
       }
@@ -660,7 +690,7 @@ function EntrepriseRow({ entreprise: e, selected, onToggle }) {
       </td>
 
       <td className="px-4 py-3">
-        <ScoreBadge score={e.score} enriched={e.enriched} />
+        <ScoreBadge score={e.score} subscores={e.subscores} enriched={e.enriched} />
       </td>
     </tr>
   );
