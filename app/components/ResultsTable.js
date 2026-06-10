@@ -192,35 +192,81 @@ function SourceOption({ checked, onChange, label, badge, badgeColor = 'text-slat
   );
 }
 
-function ProgressModal({ current, total, source, found = 0 }) {
+function StatCard({ icon, label, value }) {
+  return (
+    <div className={`rounded-xl p-3 flex flex-col items-center gap-1 transition-all ${
+      value > 0 ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-200'
+    }`}>
+      <span className="text-xl">{icon}</span>
+      <span className={`text-xl font-bold ${value > 0 ? 'text-green-700' : 'text-slate-400'}`}>
+        {value}
+      </span>
+      <span className="text-[10px] text-slate-500 text-center leading-tight">{label}</span>
+    </div>
+  );
+}
+
+function ProgressModal({ current, total, source, stats = {}, isDone = false, onClose }) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+
   const sourceLabel =
-    source === 'google' ? '🗺️ Google Maps' :
-    source === 'scrape' ? '🌐 Scraping sites web' :
-    '📋 Pappers.fr';
+    source === 'google'  ? '🗺️ Google Maps en cours...' :
+    source === 'pappers' ? '📋 Pappers.fr en cours...' :
+    source === 'scrape'  ? '🌐 Scraping sites web...' : '';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
-        <div className="text-4xl mb-4">{source === 'scrape' ? '🌐' : '⚡'}</div>
-        <h2 className="font-bold text-slate-900 text-lg mb-1">Enrichissement en cours</h2>
-        <p className="text-slate-500 text-sm mb-1">{sourceLabel}</p>
-        <p className="text-slate-400 text-xs mb-5">
-          {current} / {total} entreprise{total > 1 ? 's' : ''} traitée{total > 1 ? 's' : ''}
-        </p>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
 
-        <div className="w-full bg-slate-200 rounded-full h-3 mb-3">
-          <div
-            className="h-3 rounded-full bg-amber-500 transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
+        {/* En-tête */}
+        <div className="text-center mb-5">
+          {isDone ? (
+            <div className="text-4xl mb-3">✅</div>
+          ) : (
+            <svg className="animate-spin h-10 w-10 text-amber-500 mx-auto mb-3" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          )}
+          <h2 className="font-bold text-slate-900 text-lg">
+            {isDone ? 'Enrichissement terminé' : 'Enrichissement en cours'}
+          </h2>
+          {!isDone && (
+            <p className="text-slate-500 text-sm mt-1">{sourceLabel}</p>
+          )}
         </div>
-        <p className="text-sm font-semibold text-slate-700 mb-3">{pct}%</p>
 
-        {source === 'scrape' && (
-          <div className={`text-sm font-semibold transition-colors ${found > 0 ? 'text-green-600' : 'text-slate-400'}`}>
-            ✉️ {found} email{found > 1 ? 's' : ''} trouvé{found > 1 ? 's' : ''}
+        {/* Barre de progression — masquée quand terminé */}
+        {!isDone && (
+          <div className="mb-5">
+            <div className="flex justify-between text-xs text-slate-400 mb-1.5">
+              <span>{current} / {total} entreprise{total > 1 ? 's' : ''}</span>
+              <span className="font-semibold text-slate-600">{pct}%</span>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-2">
+              <div
+                className="h-2 rounded-full bg-amber-500 transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
           </div>
+        )}
+
+        {/* Compteurs en temps réel */}
+        <div className="grid grid-cols-3 gap-2 mb-5">
+          <StatCard icon="📞" label="Téléphones"  value={stats.telephone ?? 0} />
+          <StatCard icon="✉️" label="Emails"       value={stats.email     ?? 0} />
+          <StatCard icon="🌐" label="Sites web"    value={stats.site_web  ?? 0} />
+        </div>
+
+        {/* Bouton fermer — uniquement quand terminé */}
+        {isDone && (
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-sm transition-colors"
+          >
+            Fermer
+          </button>
         )}
       </div>
     </div>
@@ -288,37 +334,39 @@ export default function ResultsTable({
     let updated    = [...allResults];
     let hasError   = false;
 
+    // Compteurs cumulatifs sur toutes les sources
+    const stats = { telephone: 0, email: 0, site_web: 0 };
+
     const applyEnrichResults = (enrichResults) => {
       for (const enriched of enrichResults) {
         updated = updated.map((r) => {
           if (r.siren !== enriched.siren) return r;
+          const before = { ...r };
           const merged = { ...r, ...enriched, enriched: true };
-          // L'email scrappé ne remplace l'email Pappers que s'il n'en existe pas encore
           if (enriched.email_website && !r.email) {
             merged.email = enriched.email_website;
           }
-          // Score recalculé par page.js via processedResults (profil de pondération inclus)
+          // Tracker les nouvelles données trouvées
+          const hadPhone = !!(before.telephone ?? before.telephone_pappers);
+          const hasPhone = !!(merged.telephone ?? merged.telephone_pappers);
+          if (!hadPhone && hasPhone)             stats.telephone++;
+          if (!before.email && merged.email)     stats.email++;
+          if (!before.site_web && merged.site_web) stats.site_web++;
+          // Score recalculé par page.js via processedResults
           return merged;
         });
       }
     };
 
-    // Lance une source par batch, avec compteur "found" pour le scraping
     const runSource = async (sourceKey, routeUrl, items = toEnrich) => {
       if (items.length === 0) return;
-      let found = 0;
 
       for (let i = 0; i < items.length; i += ENRICH_BATCH_SIZE) {
-        setEnrichProgress({ current: i, total: items.length, source: sourceKey, found });
+        setEnrichProgress({ current: i, total: items.length, source: sourceKey, stats: { ...stats } });
         const batch = items.slice(i, i + ENRICH_BATCH_SIZE);
         try {
           const data = await postJSON(routeUrl, { entreprises: batch });
-          if (data.results) {
-            if (sourceKey === 'scrape') {
-              found += data.results.filter((r) => r.email_website).length;
-            }
-            applyEnrichResults(data.results);
-          }
+          if (data.results) applyEnrichResults(data.results);
         } catch (err) {
           console.error(`Enrichissement ${sourceKey} échoué:`, err);
           hasError = true;
@@ -327,7 +375,7 @@ export default function ResultsTable({
           current: Math.min(i + ENRICH_BATCH_SIZE, items.length),
           total:   items.length,
           source:  sourceKey,
-          found,
+          stats:   { ...stats },
         });
         onResultsUpdate([...updated]);
       }
@@ -335,14 +383,13 @@ export default function ResultsTable({
 
     if (sources.google)  await runSource('google',  ENRICH_ROUTES.google);
     if (sources.pappers) await runSource('pappers', ENRICH_ROUTES.pappers);
-
-    // Scraping : seulement les entreprises qui ont un site web
     if (sources.scrape) {
       const withSite = toEnrich.filter((r) => r.site_web);
       await runSource('scrape', ENRICH_ROUTES.scrape, withSite);
     }
 
-    setEnrichProgress(null);
+    // Afficher le récap — l'utilisateur ferme lui-même la modale
+    setEnrichProgress({ isDone: true, stats: { ...stats } });
     setSelected(new Set());
 
     if (hasError) {
@@ -411,10 +458,12 @@ export default function ResultsTable({
       )}
       {enrichProgress && (
         <ProgressModal
-          current={enrichProgress.current}
-          total={enrichProgress.total}
+          current={enrichProgress.current ?? 0}
+          total={enrichProgress.total ?? 0}
           source={enrichProgress.source}
-          found={enrichProgress.found ?? 0}
+          stats={enrichProgress.stats ?? {}}
+          isDone={enrichProgress.isDone ?? false}
+          onClose={() => setEnrichProgress(null)}
         />
       )}
 
