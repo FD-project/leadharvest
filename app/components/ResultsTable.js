@@ -307,12 +307,15 @@ export default function ResultsTable({
   const allPageSelected  = pageResults.length > 0 && pageResults.every((r) => selected.has(r.siren));
   const somePageSelected = pageResults.some((r) => selected.has(r.siren)) && !allPageSelected;
 
-  // ── États vides ──────────────────────────────────────────────────────────────
+  // ── Rendu ────────────────────────────────────────────────────────────────────
 
   if (isLoading) return <LoadingState />;
-  if (!pageResults?.length) return <EmptyState />;
 
-  // ── Rendu ────────────────────────────────────────────────────────────────────
+  // Aucun résultat du tout (search vide ou API sans résultats)
+  if (!allResults.length) return <EmptyState />;
+
+  // Des résultats existent mais le filtre actif donne 0 → afficher le header + message
+  const hasFilteredResults = pageResults.length > 0;
 
   return (
     <>
@@ -351,48 +354,54 @@ export default function ResultsTable({
           />
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-4 py-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    ref={(el) => { if (el) el.indeterminate = somePageSelected; }}
-                    onChange={togglePageSelection}
-                    className="accent-amber-500 cursor-pointer w-4 h-4"
-                  />
-                </th>
-                <SortableHeader label="Entreprise" field="nom"      onSort={onSort} SortIcon={SortIcon} />
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Dirigeant</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Adresse</th>
-                <SortableHeader label="NAF"        field="naf_code" onSort={onSort} SortIcon={SortIcon} />
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Effectif</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Téléphone</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Web / GMB</th>
-                <SortableHeader label="Score"      field="score"    onSort={onSort} SortIcon={SortIcon} />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {pageResults.map((e, i) => (
-                <EntrepriseRow
-                  key={e.siren || i}
-                  entreprise={e}
-                  selected={selected.has(e.siren)}
-                  onToggle={() => toggleSelect(e.siren)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {!hasFilteredResults ? (
+          <FilterEmptyState />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allPageSelected}
+                        ref={(el) => { if (el) el.indeterminate = somePageSelected; }}
+                        onChange={togglePageSelection}
+                        className="accent-amber-500 cursor-pointer w-4 h-4"
+                      />
+                    </th>
+                    <SortableHeader label="Entreprise" field="nom"      onSort={onSort} SortIcon={SortIcon} />
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Dirigeant</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Adresse</th>
+                    <SortableHeader label="NAF"        field="naf_code" onSort={onSort} SortIcon={SortIcon} />
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Effectif</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Téléphone</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Web / GMB</th>
+                    <SortableHeader label="Score"      field="score"    onSort={onSort} SortIcon={SortIcon} />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {pageResults.map((e, i) => (
+                    <EntrepriseRow
+                      key={e.siren || i}
+                      entreprise={e}
+                      selected={selected.has(e.siren)}
+                      onToggle={() => toggleSelect(e.siren)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-        {selected.size > 0 && (
-          <SelectionFooter
-            count={selected.size}
-            onEnrich={() => setShowEnrichModal(true)}
-          />
+            {selected.size > 0 && (
+              <SelectionFooter
+                count={selected.size}
+                onEnrich={() => setShowEnrichModal(true)}
+              />
+            )}
+          </>
         )}
       </div>
     </>
@@ -638,6 +647,18 @@ function EmptyState() {
       <div className="text-4xl mb-3">🎯</div>
       <p className="text-slate-600 font-medium">Aucun résultat</p>
       <p className="text-slate-400 text-sm mt-1">Modifiez vos filtres et relancez la recherche</p>
+    </div>
+  );
+}
+
+function FilterEmptyState() {
+  return (
+    <div className="p-12 text-center">
+      <div className="text-3xl mb-3">🔍</div>
+      <p className="text-slate-600 font-medium">Aucune entreprise ne correspond à ces filtres</p>
+      <p className="text-slate-400 text-sm mt-1">
+        Essayez de desactiver un filtre Score ou Contact ci-dessus
+      </p>
     </div>
   );
 }
