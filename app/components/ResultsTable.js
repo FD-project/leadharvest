@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { TRANCHES_EFFECTIF } from './data/naf';
 import {
   getScoreCategory,
@@ -43,13 +43,15 @@ function getFormeLabel(code) {
   return code;
 }
 
-function ScoreTooltip({ entreprise, subscores }) {
+function ScoreTooltip({ entreprise, subscores, position }) {
   const age = getAgeLabel(entreprise.date_creation);
   const hasPhone = !!(entreprise.telephone ?? entreprise.telephone_pappers);
 
   return (
-    <div className="absolute z-50 right-0 bottom-full mb-2 w-68 bg-slate-900 text-white rounded-xl p-4 shadow-2xl text-xs pointer-events-none"
-      style={{ width: '272px' }}>
+    <div
+      className="fixed z-[9999] bg-slate-900 text-white rounded-xl p-4 shadow-2xl text-xs pointer-events-none"
+      style={{ bottom: position.bottom, right: position.right, width: '272px' }}
+    >
       {/* Flèche */}
       <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-slate-900 rotate-45" />
 
@@ -134,19 +136,30 @@ const SUBSCORE_STYLES = [
 ];
 
 function ScoreBadge({ score, subscores, enriched, entreprise }) {
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState(null);
+  const wrapperRef = useRef(null);
   const category = getScoreCategory(score);
   const { badge, bar } = SCORE_CATEGORY_COLORS[category];
   const label = SCORE_CATEGORY_LABELS[category];
 
+  const handleMouseEnter = () => {
+    if (!wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    setTooltipPos({
+      bottom: window.innerHeight - rect.top + 10,
+      right:  Math.max(8, window.innerWidth - rect.right),
+    });
+  };
+
   return (
     <div
-      className="relative flex flex-col gap-1 min-w-[110px] cursor-help"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
+      ref={wrapperRef}
+      className="flex flex-col gap-1 min-w-[110px] cursor-help"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setTooltipPos(null)}
     >
-      {showTooltip && subscores && entreprise && (
-        <ScoreTooltip entreprise={entreprise} subscores={subscores} />
+      {tooltipPos && subscores && entreprise && (
+        <ScoreTooltip entreprise={entreprise} subscores={subscores} position={tooltipPos} />
       )}
       {/* Badge principal */}
       <div className="flex items-center gap-1">
