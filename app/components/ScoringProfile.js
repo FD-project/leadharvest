@@ -7,9 +7,9 @@ import { DEFAULT_PROFILE, MULTIPLIER_VALUES } from '@/lib/scoring';
 // Chaque dimension peut être Ignorée (×0.5), Normale (×1.0) ou Priorisée (×1.5).
 
 const DIMENSIONS = [
-  { key: 'adequation',   label: 'Adéquation cible',    icon: '🎯', hint: 'Âge de l\'entreprise' },
-  { key: 'capacite',     label: 'Capacité financière',  icon: '💰', hint: 'Effectif · Forme juridique · CA' },
-  { key: 'joignabilite', label: 'Joignabilité',         icon: '📞', hint: 'Dirigeant · Tél · Email' },
+  { key: 'adequation',   label: 'Adéquation',   icon: '🎯', hint: 'Âge de l\'entreprise' },
+  { key: 'capacite',     label: 'Capacité',      icon: '💰', hint: 'Effectif · Forme juridique · CA' },
+  { key: 'joignabilite', label: 'Joignabilité',  icon: '📞', hint: 'Dirigeant · Tél · Email' },
 ];
 
 const LEVELS = [
@@ -40,33 +40,31 @@ export default function ScoringProfile({ profile, onChange }) {
         )}
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         {DIMENSIONS.map(({ key, label, icon, hint }) => (
-          <div key={key}>
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <span className="text-xs text-slate-600" title={hint}>
-                {icon} {label}
-              </span>
-              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
-                {LEVELS.map(({ key: lkey, label: llabel, title }) => (
-                  <button
-                    key={lkey}
-                    onClick={() => onChange({ ...profile, [key]: lkey })}
-                    title={title}
-                    className={`px-2.5 py-1 transition-colors ${
-                      profile[key] === lkey
-                        ? lkey === 'prioriser'
-                          ? 'bg-amber-500 text-white'
-                          : lkey === 'ignorer'
-                            ? 'bg-slate-400 text-white'
-                            : 'bg-slate-700 text-white'
-                        : 'text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    {llabel}
-                  </button>
-                ))}
-              </div>
+          <div key={key} className="flex items-center gap-3">
+            <span className="text-xs text-slate-600 w-24 shrink-0" title={hint}>
+              {icon} {label}
+            </span>
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium flex-1">
+              {LEVELS.map(({ key: lkey, label: llabel, title }) => (
+                <button
+                  key={lkey}
+                  onClick={() => onChange({ ...profile, [key]: lkey })}
+                  title={title}
+                  className={`flex-1 py-1.5 transition-colors ${
+                    profile[key] === lkey
+                      ? lkey === 'prioriser'
+                        ? 'bg-amber-500 text-white'
+                        : lkey === 'ignorer'
+                          ? 'bg-slate-400 text-white'
+                          : 'bg-slate-700 text-white'
+                      : 'text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {llabel}
+                </button>
+              ))}
             </div>
           </div>
         ))}
