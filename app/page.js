@@ -6,12 +6,18 @@ import ResultsTable from './components/ResultsTable';
 import Pagination, { PER_PAGE_ALL } from './components/Pagination';
 import { withScore, applyScoreFilter, applyEnrichFilter, applySort, DEFAULT_PROFILE } from '@/lib/scoring';
 import ScoringProfile from './components/ScoringProfile';
+import { applyCacheToResults, getCacheSize, clearCache } from '@/lib/enrichCache';
 
 export default function Home() {
   const [allResults, setAllResults] = useState([]); // TOUS les résultats bruts en mémoire
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [cacheSize,   setCacheSize]   = useState(() => {
+    // Initialisé côté client uniquement
+    if (typeof window === 'undefined') return 0;
+    return getCacheSize();
+  });
 
   // Profil de pondération du score (recalcul temps réel)
   const [scoringProfile, setScoringProfile] = useState(DEFAULT_PROFILE);
@@ -86,7 +92,8 @@ export default function Home() {
 
       if (!res.ok) throw new Error(data.error || 'Erreur lors de la recherche');
 
-      setAllResults(data.results || []);
+      const withCache = applyCacheToResults(data.results || []);
+      setAllResults(withCache);
     } catch (err) {
       setError(err.message);
       setAllResults([]);
@@ -110,6 +117,12 @@ export default function Home() {
   // Mise à jour des résultats après enrichissement (depuis ResultsTable)
   const handleResultsUpdate = (updatedResults) => {
     setAllResults(updatedResults);
+    setCacheSize(getCacheSize());
+  };
+
+  const handleClearCache = () => {
+    clearCache();
+    setCacheSize(0);
   };
 
   return (
@@ -165,6 +178,32 @@ export default function Home() {
                   <span className="text-xs text-slate-600">Pappers.fr</span>
                 </div>
               </div>
+            </div>
+
+            {/* Cache local */}
+            <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cache local</p>
+                {cacheSize > 0 && (
+                  <button
+                    onClick={handleClearCache}
+                    className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors"
+                    title="Vider le cache d'enrichissement"
+                  >
+                    Vider
+                  </button>
+                )}
+              </div>
+              {cacheSize > 0 ? (
+                <p className="text-xs text-slate-600">
+                  💾 <span className="font-semibold text-green-600">{cacheSize}</span> prospect{cacheSize > 1 ? 's' : ''} enrichi{cacheSize > 1 ? 's' : ''} en mémoire
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400">Aucune donnée en cache</p>
+              )}
+              <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                Les données enrichies sont automatiquement restaurées à la prochaine recherche.
+              </p>
             </div>
 
             {/* Profil de scoring */}

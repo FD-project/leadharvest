@@ -9,6 +9,7 @@ import {
 } from '@/lib/scoring';
 import { exportEntreprisesCSV } from '@/lib/export';
 import { ENRICH_ROUTES, ENRICH_BATCH_SIZE, postJSON } from '@/lib/api';
+import { saveToCache } from '@/lib/enrichCache';
 
 // ─── Helpers tooltip scoring ──────────────────────────────────────────────────
 
@@ -167,7 +168,8 @@ function ScoreBadge({ score, subscores, enriched, entreprise }) {
           {!enriched && <span className="opacity-50 mr-0.5 text-[10px]">~</span>}
           {label} {score}
         </span>
-        {enriched && <span title="Données enrichies" className="text-xs">✨</span>}
+        {entreprise?.from_cache && <span title="Données restaurées depuis le cache" className="text-xs">💾</span>}
+        {enriched && !entreprise?.from_cache && <span title="Données enrichies" className="text-xs">✨</span>}
       </div>
 
       {/* Barre principale */}
@@ -513,6 +515,8 @@ export default function ResultsTable({
           source:  sourceKey,
           stats:   { ...stats },
         });
+        // Sauvegarder les données enrichies dans le cache localStorage
+        saveToCache(updated.filter((r) => r.enriched));
         onResultsUpdate([...updated]);
       }
     };
