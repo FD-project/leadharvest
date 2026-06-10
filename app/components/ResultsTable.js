@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { TRANCHES_EFFECTIF } from './data/naf';
 import {
+  calculateScore,
   getScoreCategory,
   SCORE_CATEGORY_LABELS,
   SCORE_CATEGORY_COLORS,
