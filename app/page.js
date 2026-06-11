@@ -245,6 +245,7 @@ export default function Home() {
                 <ResultsTable
                   results={pageResults}
                   allResults={allResults}
+                  scoredResults={processedResults}
                   filteredTotal={processedResults.length}
                   isLoading={isLoading}
                   onResultsUpdate={handleResultsUpdate}

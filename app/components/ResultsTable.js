@@ -445,6 +445,7 @@ function getTrancheLabel(code) {
 export default function ResultsTable({
   results: pageResults,
   allResults,
+  scoredResults,
   filteredTotal,
   isLoading,
   onResultsUpdate,
@@ -618,9 +619,10 @@ export default function ResultsTable({
           onEnrichFilter={onEnrichFilter}
           onEnrich={() => setShowEnrichModal(true)}
           onExport={() => {
+              const base = scoredResults ?? allResults;
               const toExport = selected.size > 0
-                ? allResults.filter((r) => selected.has(r.siren))
-                : allResults;
+                ? base.filter((r) => selected.has(r.siren))
+                : base;
               exportEntreprisesCSV(toExport);
             }}
         />
