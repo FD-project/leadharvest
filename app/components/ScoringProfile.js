@@ -60,27 +60,6 @@ const DIMENSIONS = [
   },
 ];
 
-// Style visuel de chaque état (inactif / actif)
-const LEVEL_STYLE = {
-  ignorer: {
-    idle:   'text-slate-400 hover:text-slate-600 hover:bg-slate-100',
-    active: 'bg-slate-200 text-slate-700 font-semibold',
-    dot:    'bg-slate-400',
-    mark:   '–',
-  },
-  normal: {
-    idle:   'text-slate-400 hover:text-slate-600 hover:bg-slate-100',
-    active: 'bg-[#0D1B2A] text-white font-semibold',
-    dot:    'bg-slate-700',
-    mark:   '●',
-  },
-  prioriser: {
-    idle:   'text-slate-400 hover:text-amber-500 hover:bg-amber-50',
-    active: 'bg-amber-500 text-white font-semibold',
-    dot:    'bg-amber-500',
-    mark:   '↑',
-  },
-};
 
 const PRESET_EMOJIS = {
   chasse_volume:     '🎯',
@@ -130,39 +109,48 @@ function AlertModal({ onConfirm, onCancel }) {
   );
 }
 
-// ─── Sélecteur d'axe ─────────────────────────────────────────────────────────
+// ─── Sélecteur d'axe — segmented compact ──────────────────────────────────────
+// Label à gauche, segmented control à droite (3 segments connectés en pill)
+
+const LEVELS = [
+  { key: 'ignorer',   label: 'Ignorer',   mark: '–' },
+  { key: 'normal',    label: 'Normal',    mark: '●' },
+  { key: 'prioriser', label: 'Prioriser', mark: '↑' },
+];
 
 function AxisRow({ dim, value, onChange }) {
-  const currentStyle = LEVEL_STYLE[value] || LEVEL_STYLE.normal;
-
   return (
-    <div className="flex items-center gap-2 py-1">
-      <Tooltip text={dim.hint}>
-        <div className="flex items-center gap-1.5 w-28 shrink-0 cursor-help">
-          <span className="text-sm">{dim.icon}</span>
+    <div className="flex items-center gap-3 py-1.5">
+      {/* Label */}
+      <Tooltip text={dim.hint} as="span">
+        <span className="flex items-center gap-1.5 w-24 shrink-0 cursor-help select-none">
+          <span className="text-base leading-none">{dim.icon}</span>
           <span className="text-xs text-slate-700 font-medium leading-tight">{dim.label}</span>
-        </div>
+        </span>
       </Tooltip>
 
-      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${currentStyle.dot}`} />
-
-      <div className="flex gap-1 flex-1 justify-end">
-        {Object.entries(LEVEL_STYLE).map(([lkey, ls]) => {
-          const isActive = value === lkey;
+      {/* Segmented control compact */}
+      <div className="flex flex-1 rounded-lg border border-slate-200 overflow-hidden text-[11px] font-medium">
+        {LEVELS.map(({ key, label, mark }) => {
+          const isActive = value === key;
+          let activeCls = '';
+          if (isActive) {
+            if (key === 'ignorer')   activeCls = 'bg-slate-200 text-slate-700';
+            if (key === 'normal')    activeCls = 'bg-[#0D1B2A] text-white';
+            if (key === 'prioriser') activeCls = 'bg-amber-500 text-white';
+          }
           return (
-            <Tooltip key={lkey} text={dim.tooltips[lkey]}>
+            <Tooltip key={key} text={dim.tooltips[key]} as="span">
               <button
-                onClick={() => onChange(lkey)}
+                onClick={() => onChange(key)}
                 className={`
-                  text-[11px] px-2.5 py-1 rounded-lg border transition-all duration-150
-                  ${isActive
-                    ? `${ls.active} border-transparent shadow-sm`
-                    : `${ls.idle} border-slate-100`
-                  }
+                  flex-1 flex items-center justify-center gap-0.5 py-1.5 transition-all duration-150
+                  ${isActive ? activeCls : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}
+                  ${key !== 'ignorer' ? 'border-l border-slate-200' : ''}
                 `}
               >
-                <span className="mr-0.5 opacity-70">{ls.mark}</span>
-                {lkey === 'ignorer' ? 'Ignorer' : lkey === 'normal' ? 'Normal' : 'Prioriser'}
+                <span className="opacity-80 text-[10px]">{mark}</span>
+                <span>{label}</span>
               </button>
             </Tooltip>
           );

@@ -1,31 +1,30 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
- * Tooltip universel — rendu via portail dans <body> pour ne jamais être coupé.
- * Usage : <Tooltip text="..."><button>...</button></Tooltip>
+ * Tooltip universel — portail dans <body>, position fixed.
+ * Wrapper = <div> (pas <span>) pour accepter n'importe quel enfant.
  */
-export default function Tooltip({ text, children, delay = 120 }) {
-  const [visible, setVisible] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
+export default function Tooltip({ text, children, delay = 150, as: Tag = 'div' }) {
+  const [visible, setVisible]   = useState(false);
+  const [coords,  setCoords]    = useState({ top: 0, left: 0 });
+  const [mounted, setMounted]   = useState(false);
   const triggerRef = useRef(null);
   const timerRef   = useRef(null);
-  const [mounted, setMounted] = useState(false);
 
-  // Attend le montage côté client pour createPortal
   useEffect(() => { setMounted(true); }, []);
 
   const show = useCallback(() => {
+    clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      if (triggerRef.current) {
-        const r = triggerRef.current.getBoundingClientRect();
-        setCoords({
-          top:  r.top + window.scrollY - 8,   // au-dessus du trigger
-          left: r.left + r.width / 2,          // centré horizontalement
-        });
-      }
+      if (!triggerRef.current) return;
+      const r = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top:  r.top  - 10,          // au-dessus du trigger (viewport px)
+        left: r.left + r.width / 2, // centré horizontalement
+      });
       setVisible(true);
     }, delay);
   }, [delay]);
@@ -39,49 +38,38 @@ export default function Tooltip({ text, children, delay = 120 }) {
 
   return (
     <>
-      <span
+      <Tag
         ref={triggerRef}
         onMouseEnter={show}
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        className="inline-flex"
+        style={{ display: Tag === 'div' ? 'contents' : undefined }}
       >
         {children}
-      </span>
+      </Tag>
 
       {mounted && visible && createPortal(
         <div
           role="tooltip"
           style={{
-            position: 'fixed',
-            top:  coords.top,
-            left: coords.left,
+            position:  'fixed',
+            top:       coords.top,
+            left:      coords.left,
             transform: 'translate(-50%, -100%)',
-            zIndex: 99999,
+            zIndex:    99999,
             pointerEvents: 'none',
+            maxWidth: 230,
           }}
-          className="
-            max-w-[220px] bg-slate-900 text-white text-[11px]
-            rounded-lg px-3 py-2 leading-snug shadow-xl
-            whitespace-normal
-          "
+          className="bg-slate-900 text-white text-[11px] rounded-lg px-3 py-2 leading-snug shadow-2xl whitespace-normal"
         >
           {text}
-          {/* Flèche en bas */}
-          <span
-            style={{
-              position: 'absolute',
-              top: '100%',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '5px solid transparent',
-              borderRight: '5px solid transparent',
-              borderTop: '5px solid #0f172a',
-            }}
-          />
+          <span style={{
+            position: 'absolute', top: '100%', left: '50%',
+            transform: 'translateX(-50%)',
+            borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
+            borderTop: '5px solid #0f172a', width: 0, height: 0,
+          }} />
         </div>,
         document.body
       )}
