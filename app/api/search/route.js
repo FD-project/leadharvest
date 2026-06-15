@@ -28,7 +28,8 @@ export async function GET(request) {
     : [];
 
   // Validation des inputs contre des patterns stricts
-  const VALID_NAF_RE  = /^\d{4}[A-Z]$/;
+  // Les codes NAF peuvent être au format "2910Z" ou "29.10Z" (avec ou sans point)
+  const VALID_NAF_RE  = /^\d{2}\.?\d{2}[A-Z]$/;
   const VALID_DEPT_RE = /^\d{2,3}$/;
 
   if (!nafList.every((c) => VALID_NAF_RE.test(c))) {
