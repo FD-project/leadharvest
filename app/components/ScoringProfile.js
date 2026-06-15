@@ -156,13 +156,14 @@ function AxisRow({ dim, value, onChange }) {
         />
 
         {/* Boutons transparents par-dessus */}
-        {LEVELS.map(({ key, label }, i) => (
-          <Tooltip key={key} text={dim.tooltips[key]} as="span">
+        {LEVELS.map(({ key, label }) => (
+          <Tooltip key={key} text={dim.tooltips[key]} as="span" className="flex-1 flex">
             <button
               onClick={() => onChange(key)}
               className={`
-                relative z-10 flex-1 text-[11px] font-medium transition-colors duration-150 rounded-full
-                ${value === key ? PILL_TEXT[key] : 'text-slate-400 hover:text-slate-600'}
+                relative z-10 flex-1 py-1.5 text-[11px] font-semibold text-center
+                transition-colors duration-150 rounded-full select-none
+                ${value === key ? PILL_TEXT[key] : 'text-slate-500 hover:text-slate-700'}
               `}
             >
               {label}

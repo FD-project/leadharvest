@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
  * Tooltip universel — portail dans <body>, position fixed.
  * Wrapper = <div> (pas <span>) pour accepter n'importe quel enfant.
  */
-export default function Tooltip({ text, children, delay = 150, as: Tag = 'div' }) {
+export default function Tooltip({ text, children, delay = 150, as: Tag = 'div', className = '' }) {
   const [visible, setVisible]   = useState(false);
   const [coords,  setCoords]    = useState({ top: 0, left: 0 });
   const [mounted, setMounted]   = useState(false);
@@ -44,7 +44,8 @@ export default function Tooltip({ text, children, delay = 150, as: Tag = 'div' }
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        style={{ display: Tag === 'div' ? 'contents' : undefined }}
+        className={className || undefined}
+        style={{ display: !className && Tag === 'div' ? 'contents' : undefined }}
       >
         {children}
       </Tag>
