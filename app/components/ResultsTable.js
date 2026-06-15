@@ -204,12 +204,20 @@ function ScoreBadge({ score, subscores, enriched, entreprise }) {
   );
 }
 
-function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
+function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
   const [sources, setSources] = useState({ google: true, scrape: false });
+  const [step, setStep] = useState('select'); // 'select' | 'paying' | 'done'
 
   const toggle = (key) => setSources((prev) => ({ ...prev, [key]: !prev[key] }));
   const hasSourceSelected = Object.values(sources).some(Boolean);
   const estimatedCost = sources.google ? (count * 0.034).toFixed(2) : '0.00';
+
+  const handleConfirm = () => {
+    if (isAdmin) { onLaunch(sources); return; }
+    setStep('paying');
+    setTimeout(() => setStep('done'), 2000);
+    setTimeout(() => onLaunch(sources), 3000);
+  };
 
   // Scraping disponible si : des sites sont déjà connus, OU si Google est coché (trouvera des sites)
   const scrapeAvailable = sitesCount > 0 || sources.google;
@@ -224,7 +232,7 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100">
           <div className="flex items-center justify-between">
             <div>
@@ -275,6 +283,22 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
           </div>
         )}
 
+        {/* Étape paiement simulé */}
+        {step === 'paying' && (
+          <div className="absolute inset-0 bg-white rounded-2xl flex flex-col items-center justify-center gap-4 z-10">
+            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-semibold text-slate-700">Traitement du paiement…</p>
+            <p className="text-xs text-slate-400">🔒 Paiement sécurisé</p>
+          </div>
+        )}
+        {step === 'done' && (
+          <div className="absolute inset-0 bg-white rounded-2xl flex flex-col items-center justify-center gap-3 z-10">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl">✓</div>
+            <p className="text-sm font-semibold text-slate-700">Paiement accepté !</p>
+            <p className="text-xs text-slate-400">Lancement de l'enrichissement…</p>
+          </div>
+        )}
+
         <div className="px-6 pb-6 flex gap-3">
           <button
             onClick={onClose}
@@ -283,7 +307,7 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
             Annuler
           </button>
           <button
-            onClick={() => onLaunch(sources)}
+            onClick={handleConfirm}
             disabled={!hasSourceSelected}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               hasSourceSelected
@@ -291,7 +315,7 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            Lancer l'enrichissement
+            {isAdmin ? 'Lancer l\'enrichissement' : `Payer ${estimatedCost}€ & Enrichir`}
           </button>
         </div>
       </div>
@@ -455,6 +479,7 @@ export default function ResultsTable({
   filteredTotal,
   isLoading,
   onResultsUpdate,
+  isAdmin,
   // Sort & filtres contrôlés par page.js (s'appliquent sur allResults)
   sortField,
   sortDirection,
@@ -602,6 +627,7 @@ export default function ResultsTable({
           sitesCount={allResults.filter((r) => selected.has(r.siren) && r.site_web).length}
           onClose={() => setShowEnrichModal(false)}
           onLaunch={handleEnrich}
+          isAdmin={isAdmin}
         />
       )}
       {enrichProgress && (
@@ -894,7 +920,7 @@ const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onT
       </td>
 
       {/* Colonne CONTACT — téléphone + email fusionnés */}
-      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()} onContextMenu={(e) => e.preventDefault()} style={{ userSelect: 'none' }}>
         <div className="flex flex-col gap-1">
           {telephone ? (
             <a href={`tel:${telephone}`} className="text-blue-600 hover:underline text-xs font-mono">

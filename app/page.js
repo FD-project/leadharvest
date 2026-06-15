@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+
+const ADMIN_SECRET = 'LH_FRED_2024';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
 import Pagination, { PER_PAGE_ALL } from './components/Pagination';
@@ -19,6 +21,21 @@ export default function Home() {
     if (typeof window === 'undefined') return 0;
     return getCacheSize();
   });
+
+  // Mode admin — accès libre (bypass paiement)
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const unlock = params.get('unlock');
+    if (unlock === ADMIN_SECRET) {
+      localStorage.setItem('lh_admin', ADMIN_SECRET);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('unlock');
+      window.history.replaceState({}, '', url.toString());
+    }
+    setIsAdmin(localStorage.getItem('lh_admin') === ADMIN_SECRET);
+  }, []);
 
   // Paramètres avancés — réduit par défaut
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -278,42 +295,53 @@ export default function Home() {
             ) : (
               <div>
                 {/* KPI cards */}
-                {!isLoading && allResults.length > 0 && (
-                  <div className="grid grid-cols-4 gap-3 mb-4">
-                    <KpiCard
-                      value={allResults.length}
-                      label="Prospects trouvés"
-                      color="text-[#0d6efd]"
-                    />
-                    <KpiCard
-                      value={scoredResults.filter(r => r.score > 70).length}
-                      label="Prospects chauds"
-                      sub="score > 70"
-                      color="text-[#198754]"
-                      hint="Enrichissez vos prospects pour affiner le score"
-                    />
-                    <KpiCard
-                      value={allResults.filter(r => r.enriched).length}
-                      label="Enrichis"
-                      color="text-[#0d6efd]"
-                      hint="Sélectionnez des lignes et cliquez Enrichir"
-                    />
-                    <KpiCard
-                      value={
-                        allResults.length > 0
-                          ? Math.round(allResults.filter(r => !r.site_web).length / allResults.length * 100) + '%'
-                          : '—'
-                      }
-                      label="Sans site web"
-                      color="text-[#fd7e14]"
-                    />
-                  </div>
-                )}
+                {!isLoading && allResults.length > 0 && (() => {
+                  const enrichedCount = allResults.filter(r => r.enriched).length;
+                  const telCount     = allResults.filter(r => r.telephone).length;
+                  const emailCount   = allResults.filter(r => r.email).length;
+                  const siteCount    = allResults.filter(r => r.site_web).length;
+                  return (
+                    <div className="space-y-3 mb-4">
+                      {/* Ligne 1 — toujours visible */}
+                      <div className="grid grid-cols-4 gap-3">
+                        <KpiCard value={allResults.length} label="Prospects trouvés" color="text-[#0d6efd]" />
+                        <KpiCard
+                          value={scoredResults.filter(r => r.score > 70).length}
+                          label="Prospects chauds"
+                          sub="score > 70"
+                          color="text-[#198754]"
+                          hint="Enrichissez vos prospects pour affiner le score"
+                        />
+                        <KpiCard
+                          value={enrichedCount}
+                          label="Enrichis"
+                          color="text-[#0d6efd]"
+                          hint="Sélectionnez des lignes et cliquez Enrichir"
+                        />
+                        <KpiCard
+                          value={allResults.length > 0 ? Math.round(allResults.filter(r => !r.site_web).length / allResults.length * 100) + '%' : '—'}
+                          label="Sans site web"
+                          color="text-[#fd7e14]"
+                        />
+                      </div>
+
+                      {/* Ligne 2 — résultats d'enrichissement, visible après enrichissement */}
+                      {enrichedCount > 0 && (
+                        <div className="grid grid-cols-3 gap-3">
+                          <KpiCard value={telCount}   label="Téléphones trouvés" icon="📞" color="text-[#198754]" hint={telCount === 0 ? "Aucun téléphone trouvé" : null} />
+                          <KpiCard value={emailCount} label="Emails trouvés"     icon="📧" color="text-[#0d6efd]" hint={emailCount === 0 ? "Aucun email trouvé" : null} />
+                          <KpiCard value={siteCount}  label="Sites web trouvés"  icon="🌐" color="text-[#fd7e14]" hint={siteCount === 0 ? "Aucun site trouvé" : null} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <ResultsTable
                   results={pageResults}
                   allResults={allResults}
                   scoredResults={scoredResults}
+                  isAdmin={isAdmin}
                   filteredTotal={processedResults.length}
                   isLoading={isLoading}
                   onResultsUpdate={handleResultsUpdate}
@@ -344,10 +372,13 @@ export default function Home() {
   );
 }
 
-function KpiCard({ value, label, sub, color, hint }) {
+function KpiCard({ value, label, sub, color, hint, icon }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className="flex items-center gap-2">
+        {icon && <span className="text-lg">{icon}</span>}
+        <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      </div>
       <div className="text-xs text-slate-500 mt-0.5">{label}</div>
       {sub && <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>}
       {hint && value === 0 && (
