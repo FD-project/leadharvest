@@ -205,11 +205,22 @@ function ScoreBadge({ score, subscores, enriched, entreprise }) {
 }
 
 function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
-  const [sources, setSources] = useState({ google: true, pappers: true, scrape: false });
+  const [sources, setSources] = useState({ google: true, scrape: false });
 
   const toggle = (key) => setSources((prev) => ({ ...prev, [key]: !prev[key] }));
   const hasSourceSelected = Object.values(sources).some(Boolean);
   const estimatedCost = sources.google ? (count * 0.034).toFixed(2) : '0.00';
+
+  // Scraping disponible si : des sites sont déjà connus, OU si Google est coché (trouvera des sites)
+  const scrapeAvailable = sitesCount > 0 || sources.google;
+
+  const scrapeDescription = sources.google && sitesCount === 0
+    ? 'Email extrait du site web · Les sites seront récupérés via Google Maps'
+    : sources.google && sitesCount > 0
+      ? `Email extrait du site web · ${sitesCount} site${sitesCount > 1 ? 's' : ''} connu${sitesCount > 1 ? 's' : ''} + nouveaux via Google`
+      : sitesCount > 0
+        ? `Email extrait du site web · ${sitesCount} site${sitesCount > 1 ? 's' : ''} disponible${sitesCount > 1 ? 's' : ''}`
+        : 'Email extrait du site web · Cochez Google Maps pour activer';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -245,26 +256,13 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch }) {
           />
 
           <SourceOption
-            checked={sources.pappers}
-            onChange={() => toggle('pappers')}
-            label="Pappers.fr"
-            badge="Gratuit"
-            badgeColor="text-green-600"
-            description="Email officiel · Téléphone · Forme juridique"
-          />
-
-          <SourceOption
             checked={sources.scrape}
-            onChange={() => toggle('scrape')}
+            onChange={() => !scrapeAvailable ? null : toggle('scrape')}
             label="Scraping site web"
             badge="Gratuit"
             badgeColor="text-green-600"
-            description={
-              sitesCount > 0
-                ? `Email extrait du site web · ${sitesCount} site${sitesCount > 1 ? 's' : ''} disponible${sitesCount > 1 ? 's' : ''}`
-                : 'Email extrait du site web · Enrichissez d\'abord avec Google Maps'
-            }
-            disabled={sitesCount === 0}
+            description={scrapeDescription}
+            disabled={!scrapeAvailable}
           />
         </div>
 
@@ -348,9 +346,8 @@ function ProgressModal({ current, total, source, stats = {}, isDone = false, onC
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
 
   const sourceLabel =
-    source === 'google'  ? '🗺️ Google Maps en cours...' :
-    source === 'pappers' ? '📋 Pappers.fr en cours...' :
-    source === 'scrape'  ? '🌐 Scraping sites web...' : '';
+    source === 'google' ? '🗺️ Google Maps en cours...' :
+    source === 'scrape' ? '🌐 Scraping sites web...' : '';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -522,10 +519,11 @@ export default function ResultsTable({
       }
     };
 
-    if (sources.google)  await runSource('google',  ENRICH_ROUTES.google);
-    if (sources.pappers) await runSource('pappers', ENRICH_ROUTES.pappers);
+    if (sources.google) await runSource('google', ENRICH_ROUTES.google);
     if (sources.scrape) {
-      const withSite = toEnrich.filter((r) => r.site_web);
+      // Utiliser `updated` pour capturer les sites trouvés par Google dans cette même session
+      const enrichedSirens = new Set(toEnrich.map((r) => r.siren));
+      const withSite = updated.filter((r) => enrichedSirens.has(r.siren) && r.site_web);
       await runSource('scrape', ENRICH_ROUTES.scrape, withSite);
     }
 

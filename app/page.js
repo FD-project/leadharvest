@@ -177,8 +177,8 @@ export default function Home() {
                   <span className="text-xs text-slate-600">Google Maps Places</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                  <span className="text-xs text-slate-600">Pappers.fr</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                  <span className="text-xs text-slate-600">Scraping site web</span>
                 </div>
               </div>
             </div>
