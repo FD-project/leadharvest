@@ -262,6 +262,37 @@ export default function Home() {
               </div>
             ) : (
               <div>
+                {/* KPI cards */}
+                {!isLoading && allResults.length > 0 && (
+                  <div className="grid grid-cols-4 gap-3 mb-4">
+                    <KpiCard
+                      value={allResults.length}
+                      label="Prospects trouvés"
+                      color="text-[#0d6efd]"
+                    />
+                    <KpiCard
+                      value={scoredResults.filter(r => r.score > 70).length}
+                      label="Prospects chauds"
+                      sub="score > 70"
+                      color="text-[#198754]"
+                    />
+                    <KpiCard
+                      value={allResults.filter(r => r.enriched).length}
+                      label="Enrichis"
+                      color="text-[#0d6efd]"
+                    />
+                    <KpiCard
+                      value={
+                        allResults.length > 0
+                          ? Math.round(allResults.filter(r => !r.site_web).length / allResults.length * 100) + '%'
+                          : '—'
+                      }
+                      label="Sans site web"
+                      color="text-[#fd7e14]"
+                    />
+                  </div>
+                )}
+
                 <ResultsTable
                   results={pageResults}
                   allResults={allResults}
@@ -292,6 +323,16 @@ export default function Home() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function KpiCard({ value, label, sub, color }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
+      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+      {sub && <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>}
     </div>
   );
 }
