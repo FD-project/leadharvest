@@ -3,24 +3,33 @@
 import { useState, useEffect } from 'react';
 import { NAF_DIVISIONS, getCodesForDivision, TRANCHES_EFFECTIF, DEPARTEMENTS } from './data/naf';
 
+// Seuils de volumétrie (combinaisons NAF × département — cas théorique max)
+// En pratique, SIRENE_MAX_RESULTS=1000 côté serveur arrête l'itération bien avant.
+const WARN_THRESHOLD  = 500;   // avertissement : recherche potentiellement longue
+const BLOCK_THRESHOLD = 2000;  // blocage : volume vraiment excessif (rare)
+
 export default function Filters({ onSearch, isLoading }) {
-  const [division, setDivision] = useState('');
+  const [selectedDivisions, setSelectedDivisions] = useState([]);
   const [nafCodes, setNafCodes] = useState([]);
   const [selectedNaf, setSelectedNaf] = useState([]);
   const [selectedDepts, setSelectedDepts] = useState([]);
   const [selectedTranches, setSelectedTranches] = useState([]);
 
-  // Quand la division change, on charge les codes NAF correspondants
+  // Quand les divisions changent, on agrège les codes NAF de toutes les divisions cochées
   useEffect(() => {
-    if (division) {
-      const codes = getCodesForDivision(division);
-      setNafCodes(codes);
-      setSelectedNaf(codes.map(c => c.code)); // tout coché par défaut
+    if (selectedDivisions.length > 0) {
+      // Fusionner les codes de toutes les divisions sélectionnées (dédupliquer par code)
+      const allCodes = selectedDivisions.flatMap(div => getCodesForDivision(div));
+      const unique = Array.from(new Map(allCodes.map(c => [c.code, c])).values());
+      // Trier par code NAF
+      unique.sort((a, b) => a.code.localeCompare(b.code));
+      setNafCodes(unique);
+      setSelectedNaf(unique.map(c => c.code)); // tout coché par défaut
     } else {
       setNafCodes([]);
       setSelectedNaf([]);
     }
-  }, [division]);
+  }, [selectedDivisions]);
 
   const toggleItem = (list, setList, value) => {
     if (list.includes(value)) {
@@ -38,8 +47,13 @@ export default function Filters({ onSearch, isLoading }) {
     }
   };
 
+  // Estimation du nombre de requêtes SIRENE qui seront émises
+  const estimatedCalls = selectedNaf.length * selectedDepts.length;
+  const isOverLimit = estimatedCalls > BLOCK_THRESHOLD;
+  const isWarning   = estimatedCalls > WARN_THRESHOLD && !isOverLimit;
+
   const handleSearch = () => {
-    if (!division || selectedNaf.length === 0 || selectedDepts.length === 0) return;
+    if (selectedDivisions.length === 0 || selectedNaf.length === 0 || selectedDepts.length === 0 || isOverLimit) return;
     onSearch({
       nafCodes: selectedNaf,
       departements: selectedDepts,
@@ -47,28 +61,40 @@ export default function Filters({ onSearch, isLoading }) {
     });
   };
 
-  const isValid = division && selectedNaf.length > 0 && selectedDepts.length > 0;
+  const isValid = selectedDivisions.length > 0 && selectedNaf.length > 0 && selectedDepts.length > 0 && !isOverLimit;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
 
-      {/* Filtre 1 — Division NAF */}
+      {/* Filtre 1 — Divisions NAF (multi-sélection) */}
       <div>
-        <label className="block text-sm font-semibold text-navy mb-2">
-          Secteur d'activité (Division NAF)
-        </label>
-        <select
-          value={division}
-          onChange={e => setDivision(e.target.value)}
-          className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="">— Sélectionnez un secteur —</option>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-semibold text-navy">
+            Secteur(s) d'activité — Division NAF ({selectedDivisions.length}/{NAF_DIVISIONS.length} sélectionné{selectedDivisions.length > 1 ? 's' : ''})
+          </label>
+          <button
+            onClick={() => toggleAll(selectedDivisions, setSelectedDivisions, NAF_DIVISIONS.map(d => d.code))}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+          >
+            {selectedDivisions.length === NAF_DIVISIONS.length ? 'Tout décocher' : 'Tout cocher'}
+          </button>
+        </div>
+        <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1">
           {NAF_DIVISIONS.map(d => (
-            <option key={d.code} value={d.code}>
-              {d.code} — {d.label}
-            </option>
+            <label key={d.code} className="flex items-start gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1">
+              <input
+                type="checkbox"
+                checked={selectedDivisions.includes(d.code)}
+                onChange={() => toggleItem(selectedDivisions, setSelectedDivisions, d.code)}
+                className="mt-0.5 accent-blue-600"
+              />
+              <span className="text-xs text-slate-700">
+                <span className="font-mono font-semibold text-slate-900">{d.code}</span>
+                {' — '}{d.label}
+              </span>
+            </label>
           ))}
-        </select>
+        </div>
       </div>
 
       {/* Filtre 2 — Codes NAF */}
@@ -160,6 +186,36 @@ export default function Filters({ onSearch, isLoading }) {
         </div>
       </div>
 
+      {/* Indicateur volumétrie */}
+      {estimatedCalls > 0 && (
+        <div className={`rounded-lg px-4 py-3 text-xs flex items-start gap-2 ${
+          isOverLimit
+            ? 'bg-red-50 border border-red-200 text-red-700'
+            : isWarning
+            ? 'bg-amber-50 border border-amber-200 text-amber-700'
+            : 'bg-slate-50 border border-slate-200 text-slate-500'
+        }`}>
+          <span className="text-base leading-none mt-0.5">
+            {isOverLimit ? '🚫' : isWarning ? '⚠️' : 'ℹ️'}
+          </span>
+          <div>
+            <span className="font-semibold">
+              {estimatedCalls} combinaison{estimatedCalls > 1 ? 's' : ''} max
+            </span>
+            {' '}({selectedNaf.length} code{selectedNaf.length > 1 ? 's' : ''} NAF × {selectedDepts.length} département{selectedDepts.length > 1 ? 's' : ''})
+            {' — '}résultats limités à 1 000 au total.
+            {isOverLimit && (
+              <p className="mt-1">
+                Volume trop important — réduisez le nombre de codes NAF ou de départements.
+              </p>
+            )}
+            {isWarning && (
+              <p className="mt-1">La recherche peut prendre quelques minutes.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Bouton recherche */}
       <button
         onClick={handleSearch}
@@ -183,9 +239,9 @@ export default function Filters({ onSearch, isLoading }) {
         )}
       </button>
 
-      {!isValid && (
+      {!isValid && !isOverLimit && (
         <p className="text-xs text-slate-400 text-center">
-          Sélectionnez un secteur et au moins un département pour lancer la recherche
+          Sélectionnez au moins un secteur et un département pour lancer la recherche
         </p>
       )}
     </div>

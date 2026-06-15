@@ -13,6 +13,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isCapped, setIsCapped] = useState(false); // true = plafond 1000 résultats atteint
   const [cacheSize,   setCacheSize]   = useState(() => {
     // Initialisé côté client uniquement
     if (typeof window === 'undefined') return 0;
@@ -74,6 +75,7 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
+    setIsCapped(false);
     setPage(1);
     setScoreFilter('all');
     setEnrichFilter('all');
@@ -94,6 +96,7 @@ export default function Home() {
 
       const withCache = applyCacheToResults(data.results || []);
       setAllResults(withCache);
+      setIsCapped(data.capped === true);
     } catch (err) {
       setError(err.message);
       setAllResults([]);
@@ -217,6 +220,17 @@ export default function Home() {
             {error && (
               <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
                 ⚠️ {error}
+              </div>
+            )}
+
+            {isCapped && !isLoading && (
+              <div className="mb-4 bg-amber-50 border border-amber-300 rounded-xl p-4 text-sm text-amber-800">
+                <p className="font-semibold mb-1">⚠️ Résultats tronqués — limite de 1 000 atteinte</p>
+                <p className="leading-relaxed">
+                  Votre sélection génère plus de 1 000 entreprises correspondantes. Conformément aux conditions d'utilisation de l'API recherche-entreprises.gouv.fr, les résultats sont plafonnés à 1 000 par requête.
+                  <br />
+                  Pour obtenir la totalité des prospects, <strong>réduisez votre sélection</strong> (moins de codes NAF ou moins de départements) et effectuez <strong>plusieurs recherches successives</strong>.
+                </p>
               </div>
             )}
 

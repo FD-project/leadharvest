@@ -39,9 +39,11 @@ export async function GET(request) {
       if (collected.size >= SIRENE_MAX_RESULTS) break;
     }
 
+    const results = Array.from(collected.values());
     return Response.json({
-      total:   collected.size,
-      results: Array.from(collected.values()),
+      total:   results.length,
+      capped:  results.length >= SIRENE_MAX_RESULTS, // true = plafond atteint, résultats tronqués
+      results,
     });
   } catch (error) {
     console.error('Erreur recherche SIRENE:', error);
