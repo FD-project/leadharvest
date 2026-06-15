@@ -48,6 +48,9 @@ function ScoreTooltip({ entreprise, subscores, position }) {
   const age = getAgeLabel(entreprise.date_creation);
   const hasPhone = !!entreprise.telephone;
 
+  // Code NAF (division 2 chiffres) pour l'affichage adequation
+  const nafCode = (entreprise.activite_principale || entreprise.code_naf || '').replace(/\./g, '');
+
   return (
     <div
       className="fixed z-[9999] bg-slate-900 text-white rounded-xl p-4 shadow-2xl text-xs pointer-events-none"
@@ -58,26 +61,26 @@ function ScoreTooltip({ entreprise, subscores, position }) {
 
       <p className="font-bold text-center text-sm mb-3 text-slate-100">Détail du score</p>
 
-      {/* Adéquation */}
-      <div className="mb-3">
+      {/* Adéquation (NAF) */}
+      <div className="mb-2.5">
         <div className="flex items-center justify-between mb-1">
           <span className="font-semibold text-blue-300">🎯 Adéquation</span>
-          <span className="font-bold text-blue-200">{subscores.adequation}/100</span>
+          <span className="font-bold text-blue-200">{subscores.adequation ?? '—'}/100</span>
         </div>
         <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-0.5 text-slate-400">
           <div className="flex justify-between">
-            <span>Âge de l'entreprise</span>
-            <span className="text-slate-300 font-medium">{age.label}</span>
+            <span>Code NAF</span>
+            <span className="text-slate-300 font-mono">{nafCode || 'Inconnu'}</span>
           </div>
-          <div className="text-slate-500 text-[10px]">{age.detail}</div>
+          <div className="text-slate-500 text-[10px]">Score selon la division sectorielle</div>
         </div>
       </div>
 
       {/* Capacité */}
-      <div className="mb-3">
+      <div className="mb-2.5">
         <div className="flex items-center justify-between mb-1">
           <span className="font-semibold text-teal-300">💰 Capacité</span>
-          <span className="font-bold text-teal-200">{subscores.capacite}/100</span>
+          <span className="font-bold text-teal-200">{subscores.capacite ?? '—'}/100</span>
         </div>
         <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-1 text-slate-400">
           <div className="flex justify-between">
@@ -97,11 +100,26 @@ function ScoreTooltip({ entreprise, subscores, position }) {
         </div>
       </div>
 
+      {/* Maturité */}
+      <div className="mb-2.5">
+        <div className="flex items-center justify-between mb-1">
+          <span className="font-semibold text-purple-300">📅 Maturité</span>
+          <span className="font-bold text-purple-200">{subscores.maturite ?? '—'}/100</span>
+        </div>
+        <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-0.5 text-slate-400">
+          <div className="flex justify-between">
+            <span>Ancienneté</span>
+            <span className="text-slate-300 font-medium">{age.label}</span>
+          </div>
+          <div className="text-slate-500 text-[10px]">{age.detail}</div>
+        </div>
+      </div>
+
       {/* Joignabilité */}
       <div>
         <div className="flex items-center justify-between mb-1">
           <span className="font-semibold text-amber-300">📞 Joignabilité</span>
-          <span className="font-bold text-amber-200">{subscores.joignabilite}/100</span>
+          <span className="font-bold text-amber-200">{subscores.joignabilite ?? '—'}/100</span>
         </div>
         <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-1 text-slate-400">
           <div className="flex justify-between">
@@ -131,17 +149,18 @@ function ScoreTooltip({ entreprise, subscores, position }) {
 // ─── Sous-composants ──────────────────────────────────────────────────────────
 
 const SUBSCORE_STYLES = [
-  { key: 'adequation',   label: 'Adéq', color: 'bg-blue-400'  },
-  { key: 'capacite',     label: 'Cap.',  color: 'bg-teal-400'  },
-  { key: 'joignabilite', label: 'Joi.',  color: 'bg-amber-400' },
+  { key: 'adequation',   label: 'Adéq', color: 'bg-blue-400'   },
+  { key: 'capacite',     label: 'Cap.',  color: 'bg-teal-400'   },
+  { key: 'maturite',     label: 'Mat.',  color: 'bg-purple-400' },
+  { key: 'joignabilite', label: 'Joi.',  color: 'bg-amber-400'  },
 ];
 
-function ScoreBadge({ score, subscores, enriched, entreprise }) {
+function ScoreBadge({ score, subscores, enriched, entreprise, disqualifie, raison_dq }) {
   const [tooltipPos, setTooltipPos] = useState(null);
   const wrapperRef = useRef(null);
-  const category = getScoreCategory(score);
-  const { badge, bar } = SCORE_CATEGORY_COLORS[category];
-  const label = SCORE_CATEGORY_LABELS[category];
+  const category = disqualifie ? 'disqualifie' : getScoreCategory(score);
+  const { badge, bar } = SCORE_CATEGORY_COLORS[category] ?? SCORE_CATEGORY_COLORS.cold;
+  const label = SCORE_CATEGORY_LABELS[category] ?? '—';
 
   const handleMouseEnter = () => {
     if (!wrapperRef.current) return;
@@ -159,46 +178,63 @@ function ScoreBadge({ score, subscores, enriched, entreprise }) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setTooltipPos(null)}
     >
-      {tooltipPos && subscores && entreprise && (
+      {tooltipPos && subscores && entreprise && !disqualifie && (
         <ScoreTooltip entreprise={entreprise} subscores={subscores} position={tooltipPos} />
       )}
-      {/* Badge principal */}
-      <div className="flex items-center gap-1">
-        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge}`}>
-          {!enriched && <span className="opacity-50 mr-0.5 text-[10px]">~</span>}
-          {label} {score}
-        </span>
-        {entreprise?.from_cache && <span title="Données restaurées depuis le cache" className="text-xs">💾</span>}
-        {enriched && !entreprise?.from_cache && <span title="Données enrichies" className="text-xs">✨</span>}
-      </div>
 
-      {/* Barre principale */}
-      <div className="w-full bg-slate-200 rounded-full h-1.5">
-        <div
-          className={`h-1.5 rounded-full transition-all duration-700 ${bar}`}
-          style={{ width: `${score}%` }}
-        />
-      </div>
-
-      {/* Sous-scores */}
-      {subscores && (
-        <div className="flex flex-col gap-0.5 mt-0.5">
-          {SUBSCORE_STYLES.map(({ key, label: slabel, color }) => {
-            const val = subscores[key] ?? 0;
-            return (
-              <div key={key} className="flex items-center gap-1">
-                <span className="text-[9px] text-slate-400 w-6 shrink-0">{slabel}</span>
-                <div className="flex-1 bg-slate-100 rounded-full h-1 overflow-hidden">
-                  <div
-                    className={`h-1 rounded-full transition-all duration-500 ${color}`}
-                    style={{ width: `${val}%` }}
-                  />
-                </div>
-                <span className="text-[9px] text-slate-400 w-5 text-right shrink-0">{val}</span>
-              </div>
-            );
-          })}
+      {disqualifie ? (
+        /* Lead exclu — affichage simplifie */
+        <div>
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge}`}>
+            Exclu
+          </span>
+          {raison_dq && (
+            <p className="text-[10px] text-slate-400 mt-1 leading-tight" title={raison_dq}>
+              {raison_dq}
+            </p>
+          )}
         </div>
+      ) : (
+        <>
+          {/* Badge principal */}
+          <div className="flex items-center gap-1">
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge}`}>
+              {!enriched && <span className="opacity-50 mr-0.5 text-[10px]">~</span>}
+              {label} {score}
+            </span>
+            {entreprise?.from_cache && <span title="Données restaurées depuis le cache" className="text-xs">💾</span>}
+            {enriched && !entreprise?.from_cache && <span title="Données enrichies" className="text-xs">✨</span>}
+          </div>
+
+          {/* Barre principale */}
+          <div className="w-full bg-slate-200 rounded-full h-1.5">
+            <div
+              className={`h-1.5 rounded-full transition-all duration-700 ${bar}`}
+              style={{ width: `${score}%` }}
+            />
+          </div>
+
+          {/* Sous-scores (4 axes) */}
+          {subscores && (
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              {SUBSCORE_STYLES.map(({ key, label: slabel, color }) => {
+                const val = subscores[key] ?? 0;
+                return (
+                  <div key={key} className="flex items-center gap-1">
+                    <span className="text-[9px] text-slate-400 w-6 shrink-0">{slabel}</span>
+                    <div className="flex-1 bg-slate-100 rounded-full h-1 overflow-hidden">
+                      <div
+                        className={`h-1 rounded-full transition-all duration-500 ${color}`}
+                        style={{ width: `${val}%` }}
+                      />
+                    </div>
+                    <span className="text-[9px] text-slate-400 w-5 text-right shrink-0">{val}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1016,7 +1052,14 @@ const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onT
 
       {/* Colonne SCORE */}
       <td className="px-4 py-3">
-        <ScoreBadge score={e.score} subscores={e.subscores} enriched={e.enriched} entreprise={e} />
+        <ScoreBadge
+          score={e.score}
+          subscores={e.subscores}
+          enriched={e.enriched}
+          entreprise={e}
+          disqualifie={e.disqualifie}
+          raison_dq={e.raison_dq}
+        />
       </td>
     </tr>
   );

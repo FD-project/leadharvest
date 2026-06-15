@@ -6,7 +6,7 @@ const ADMIN_SECRET = 'LH_FRED_2024';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
 import Pagination, { PER_PAGE_ALL } from './components/Pagination';
-import { withScore, applyScoreFilter, applyEnrichFilter, applySort, DEFAULT_PROFILE } from '@/lib/scoring';
+import { withScore, applyScoreFilter, applyEnrichFilter, applySort, DEFAULT_PROFILE, DEFAULT_OPTIONS } from '@/lib/scoring';
 import ScoringProfile from './components/ScoringProfile';
 import { applyCacheToResults, getCacheSize, clearCache } from '@/lib/enrichCache';
 
@@ -43,6 +43,9 @@ export default function Home() {
   // Profil de pondération du score (recalcul temps réel)
   const [scoringProfile, setScoringProfile] = useState(DEFAULT_PROFILE);
 
+  // Options avancées du score (filtres durs, NAF listes, seuils, geo)
+  const [scoringOptions, setScoringOptions] = useState(DEFAULT_OPTIONS);
+
   // Sort & filtres — sur l'ensemble des résultats (pas par page)
   const [sortField,     setSortField]     = useState('score');
   const [sortDirection, setSortDirection] = useState('desc');
@@ -56,8 +59,8 @@ export default function Home() {
   // Étape 1 — Scoring : ne recalcule que si les données ou le profil changent.
   // Isolé pour éviter 1 000 recalculs à chaque changement de filtre ou de tri.
   const scoredResults = useMemo(
-    () => allResults.map((e) => withScore(e, scoringProfile)),
-    [allResults, scoringProfile]
+    () => allResults.map((e) => withScore(e, scoringProfile, scoringOptions)),
+    [allResults, scoringProfile, scoringOptions]
   );
 
   // Étape 2 — Filtrage + tri : ne retouche pas les scores.
@@ -248,7 +251,12 @@ export default function Home() {
                   </div>
 
                   {/* Profil de scoring */}
-                  <ScoringProfile profile={scoringProfile} onChange={setScoringProfile} />
+                  <ScoringProfile
+                    profile={scoringProfile}
+                    options={scoringOptions}
+                    onChange={setScoringProfile}
+                    onOptionsChange={setScoringOptions}
+                  />
                 </div>
               )}
             </div>
@@ -308,9 +316,9 @@ export default function Home() {
                       <div className="grid grid-cols-4 gap-3">
                         <KpiCard value={allResults.length} label="Prospects trouvés" color="text-[#0d6efd]" />
                         <KpiCard
-                          value={scoredResults.filter(r => r.score > 70).length}
+                          value={scoredResults.filter(r => !r.disqualifie && r.segment === 'hot').length}
                           label="Prospects chauds"
-                          sub="score > 70"
+                          sub={`score ≥ ${scoringOptions.seuils?.hot ?? 70}`}
                           color="text-[#198754]"
                           hint="Enrichissez vos prospects pour affiner le score"
                         />
