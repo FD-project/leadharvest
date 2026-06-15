@@ -658,15 +658,12 @@ export default function ResultsTable({
                         className="accent-amber-500 cursor-pointer w-4 h-4"
                       />
                     </th>
-                    <SortableHeader label="Entreprise" field="nom"      onSort={onSort} SortIcon={SortIcon} />
+                    <SortableHeader label="Entreprise" field="nom"   onSort={onSort} SortIcon={SortIcon} />
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Dirigeant</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Adresse</th>
-                    <SortableHeader label="NAF"        field="naf_code" onSort={onSort} SortIcon={SortIcon} />
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Effectif</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Téléphone</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Web / GMB</th>
-                    <SortableHeader label="Score"      field="score"    onSort={onSort} SortIcon={SortIcon} />
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Présence en ligne</th>
+                    <SortableHeader label="Score"      field="score" onSort={onSort} SortIcon={SortIcon} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -791,6 +788,7 @@ function SortableHeader({ label, field, onSort, SortIcon }) {
 
 const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onToggle }) {
   const telephone = e.telephone;
+  const [showTooltip, setShowTooltip] = useState(false);
 
   return (
     <tr
@@ -808,21 +806,79 @@ const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onT
         />
       </td>
 
+      {/* Colonne ENTREPRISE — tooltip au hover avec détails NAF, effectif, SIREN */}
       <td className="px-4 py-3">
-        <div className="font-medium text-slate-900 max-w-[180px] truncate" title={e.nom}>
-          {e.nom || '—'}
+        <div
+          className="relative"
+          onMouseEnter={() => setShowTooltip(true)}
+          onMouseLeave={() => setShowTooltip(false)}
+        >
+          <div className="font-medium text-slate-900 max-w-[180px] truncate" title={e.nom}>
+            {e.nom || '—'}
+          </div>
+          <div className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-1">
+            <span>{e.siren}</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-slate-400">{e.naf_code}</span>
+          </div>
+
+          {showTooltip && (
+            <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-slate-900 text-white rounded-xl p-3 text-xs shadow-2xl pointer-events-none">
+              <p className="font-semibold text-slate-100 mb-2">{e.nom}</p>
+              <div className="space-y-1.5 text-slate-300">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">SIREN</span>
+                  <span className="font-mono">{e.siren}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Secteur NAF</span>
+                  <span className="text-right max-w-[160px]">{e.naf_code}{e.naf_libelle ? ` — ${e.naf_libelle}` : ''}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Effectif</span>
+                  <span>{getTrancheLabel(e.tranche_effectif)}</span>
+                </div>
+                {e.nature_juridique && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Forme juridique</span>
+                    <span>{getFormeLabel(e.nature_juridique)}</span>
+                  </div>
+                )}
+                {e.ca != null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Chiffre d'affaires</span>
+                    <span>{e.ca.toLocaleString('fr-FR')} €</span>
+                  </div>
+                )}
+                {e.date_creation && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Créée en</span>
+                    <span>{new Date(e.date_creation).getFullYear()}</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-slate-500 text-[10px] mt-2 border-t border-slate-700 pt-2">
+                Tous ces champs sont inclus dans l'export CSV
+              </p>
+            </div>
+          )}
         </div>
-        <div className="text-xs text-slate-400 font-mono mt-0.5">{e.siren}</div>
       </td>
 
+      {/* Colonne DIRIGEANT — tronquée */}
       <td className="px-4 py-3">
         {e.dirigeant?.nom ? (
           <div>
-            <div className="text-slate-800 text-xs font-medium">
+            <div
+              className="text-slate-800 text-xs font-medium max-w-[130px] truncate"
+              title={[e.dirigeant.prenom, e.dirigeant.nom].filter(Boolean).join(' ')}
+            >
               {[e.dirigeant.prenom, e.dirigeant.nom].filter(Boolean).join(' ')}
             </div>
             {e.dirigeant.qualite && (
-              <div className="text-xs text-slate-400">{e.dirigeant.qualite}</div>
+              <div className="text-xs text-slate-400 max-w-[130px] truncate" title={e.dirigeant.qualite}>
+                {e.dirigeant.qualite}
+              </div>
             )}
           </div>
         ) : (
@@ -830,45 +886,38 @@ const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onT
         )}
       </td>
 
+      {/* Colonne ADRESSE */}
       <td className="px-4 py-3">
         <div className="text-slate-600 text-xs max-w-[150px] truncate" title={e.adresse}>
           {e.adresse || '—'}
         </div>
       </td>
 
-      <td className="px-4 py-3">
-        <span className="font-mono text-xs bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
-          {e.naf_code}
-        </span>
-      </td>
-
-      <td className="px-4 py-3">
-        <span className="text-xs text-slate-600">{getTrancheLabel(e.tranche_effectif)}</span>
-      </td>
-
+      {/* Colonne CONTACT — téléphone + email fusionnés */}
       <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
-        {telephone ? (
-          <a href={`tel:${telephone}`} className="text-blue-600 hover:underline text-xs font-mono">
-            {telephone}
-          </a>
-        ) : (
-          <span className="text-slate-300 text-xs">{e.enriched ? '—' : 'Non enrichi'}</span>
-        )}
+        <div className="flex flex-col gap-1">
+          {telephone ? (
+            <a href={`tel:${telephone}`} className="text-blue-600 hover:underline text-xs font-mono">
+              {telephone}
+            </a>
+          ) : (
+            <span className="text-slate-300 text-xs">{e.enriched ? '—' : 'Non enrichi'}</span>
+          )}
+          {e.email ? (
+            <a
+              href={`mailto:${e.email}`}
+              className="text-blue-600 hover:underline text-xs truncate max-w-[150px] block"
+              title={e.email}
+            >
+              {e.email}
+            </a>
+          ) : e.enriched ? (
+            <span className="text-slate-300 text-xs">—</span>
+          ) : null}
+        </div>
       </td>
 
-      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
-        {e.email ? (
-          <a
-            href={`mailto:${e.email}`}
-            className="text-blue-600 hover:underline text-xs truncate max-w-[140px] block"
-          >
-            {e.email}
-          </a>
-        ) : (
-          <span className="text-slate-300 text-xs">{e.enriched ? '—' : 'Non enrichi'}</span>
-        )}
-      </td>
-
+      {/* Colonne PRÉSENCE EN LIGNE */}
       <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
         <div className="flex flex-col gap-1">
           {safeSiteUrl(e.site_web) ? (
@@ -886,11 +935,12 @@ const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onT
             </span>
           )}
           <span className={`text-xs ${e.gmb_present ? 'text-green-600' : e.enriched ? 'text-slate-400' : 'text-slate-300'}`}>
-            {e.gmb_present ? '📍 GMB ✓' : e.enriched ? '📍 Pas de GMB' : '📍 —'}
+            {e.gmb_present ? '📍 Fiche Google ✓' : e.enriched ? '📍 Pas de fiche' : '📍 —'}
           </span>
         </div>
       </td>
 
+      {/* Colonne SCORE */}
       <td className="px-4 py-3">
         <ScoreBadge score={e.score} subscores={e.subscores} enriched={e.enriched} entreprise={e} />
       </td>

@@ -64,13 +64,16 @@ export default function Filters({ onSearch, isLoading }) {
   const isValid = selectedDivisions.length > 0 && selectedNaf.length > 0 && selectedDepts.length > 0 && !isOverLimit;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
 
-      {/* Filtre 1 — Divisions NAF (multi-sélection) */}
+      {/* Zone scrollable des filtres */}
+      <div className="p-6 space-y-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+
+      {/* Filtre 1 — Secteur d'activité */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-semibold text-navy">
-            Secteur(s) d'activité — Division NAF ({selectedDivisions.length}/{NAF_DIVISIONS.length} sélectionné{selectedDivisions.length > 1 ? 's' : ''})
+            Secteur(s) d'activité ({selectedDivisions.length}/{NAF_DIVISIONS.length} sélectionné{selectedDivisions.length > 1 ? 's' : ''})
           </label>
           <button
             onClick={() => toggleAll(selectedDivisions, setSelectedDivisions, NAF_DIVISIONS.map(d => d.code))}
@@ -97,12 +100,12 @@ export default function Filters({ onSearch, isLoading }) {
         </div>
       </div>
 
-      {/* Filtre 2 — Codes NAF */}
+      {/* Filtre 2 — Codes d'activité */}
       {nafCodes.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="block text-sm font-semibold text-navy">
-              Codes NAF ({selectedNaf.length}/{nafCodes.length} sélectionnés)
+              Codes d'activité ({selectedNaf.length}/{nafCodes.length} sélectionnés)
             </label>
             <button
               onClick={() => toggleAll(selectedNaf, setSelectedNaf, nafCodes.map(c => c.code))}
@@ -158,11 +161,11 @@ export default function Filters({ onSearch, isLoading }) {
         </div>
       </div>
 
-      {/* Filtre 4 — Tranches d'effectif */}
+      {/* Filtre 4 — Taille d'entreprise */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-semibold text-navy">
-            Tranche(s) d'effectif ({selectedTranches.length === 0 ? 'toutes' : selectedTranches.length + ' sélectionnée(s)'})
+            Taille d'entreprise ({selectedTranches.length === 0 ? 'toutes' : selectedTranches.length + ' sélectionnée(s)'})
           </label>
           <button
             onClick={() => toggleAll(selectedTranches, setSelectedTranches, TRANCHES_EFFECTIF.map(t => t.code))}
@@ -186,64 +189,64 @@ export default function Filters({ onSearch, isLoading }) {
         </div>
       </div>
 
-      {/* Indicateur volumétrie */}
-      {estimatedCalls > 0 && (
-        <div className={`rounded-lg px-4 py-3 text-xs flex items-start gap-2 ${
-          isOverLimit
-            ? 'bg-red-50 border border-red-200 text-red-700'
-            : isWarning
-            ? 'bg-amber-50 border border-amber-200 text-amber-700'
-            : 'bg-slate-50 border border-slate-200 text-slate-500'
-        }`}>
-          <span className="text-base leading-none mt-0.5">
-            {isOverLimit ? '🚫' : isWarning ? '⚠️' : 'ℹ️'}
-          </span>
-          <div>
-            <span className="font-semibold">
-              {estimatedCalls} combinaison{estimatedCalls > 1 ? 's' : ''} max
+      </div>{/* fin zone scrollable */}
+
+      {/* Section bouton — toujours visible en bas */}
+      <div className="px-4 pb-4 pt-3 border-t border-slate-100 bg-white rounded-b-xl space-y-2">
+
+        {/* Indicateur volumétrie */}
+        {estimatedCalls > 0 && (
+          <div className={`rounded-lg px-3 py-2 text-xs flex items-start gap-2 ${
+            isOverLimit
+              ? 'bg-red-50 border border-red-200 text-red-700'
+              : isWarning
+              ? 'bg-amber-50 border border-amber-200 text-amber-700'
+              : 'bg-slate-50 border border-slate-200 text-slate-500'
+          }`}>
+            <span className="text-base leading-none mt-0.5">
+              {isOverLimit ? '🚫' : isWarning ? '⚠️' : 'ℹ️'}
             </span>
-            {' '}({selectedNaf.length} code{selectedNaf.length > 1 ? 's' : ''} NAF × {selectedDepts.length} département{selectedDepts.length > 1 ? 's' : ''})
-            {' — '}résultats limités à 1 000 au total.
-            {isOverLimit && (
-              <p className="mt-1">
-                Volume trop important — réduisez le nombre de codes NAF ou de départements.
-              </p>
-            )}
-            {isWarning && (
-              <p className="mt-1">La recherche peut prendre quelques minutes.</p>
-            )}
+            <div>
+              <span className="font-semibold">
+                {estimatedCalls} combinaison{estimatedCalls > 1 ? 's' : ''} max
+              </span>
+              {' '}({selectedNaf.length} code{selectedNaf.length > 1 ? 's' : ''} × {selectedDepts.length} dept.)
+              {' — '}limités à 1 000 résultats.
+              {isOverLimit && <p className="mt-1">Volume trop important — réduisez la sélection.</p>}
+              {isWarning && <p className="mt-1">La recherche peut prendre quelques minutes.</p>}
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Bouton recherche */}
-      <button
-        onClick={handleSearch}
-        disabled={!isValid || isLoading}
-        className={`w-full py-3 px-6 rounded-lg font-semibold text-sm transition-all duration-200 ${
-          isValid && !isLoading
-            ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md hover:shadow-lg'
-            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-        }`}
-      >
-        {isLoading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-            Recherche en cours...
-          </span>
-        ) : (
-          `🔍 Rechercher des prospects${selectedDepts.length > 0 ? ` (${selectedDepts.length} dept.)` : ''}`
         )}
-      </button>
 
-      {!isValid && !isOverLimit && (
-        <p className="text-xs text-slate-400 text-center">
-          Sélectionnez au moins un secteur et un département pour lancer la recherche
-        </p>
-      )}
+        {/* Bouton recherche */}
+        <button
+          onClick={handleSearch}
+          disabled={!isValid || isLoading}
+          className={`w-full py-3 px-6 rounded-lg font-semibold text-sm transition-all duration-200 ${
+            isValid && !isLoading
+              ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md hover:shadow-lg'
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+          }`}
+        >
+          {isLoading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Recherche en cours...
+            </span>
+          ) : (
+            `🔍 Rechercher des prospects${selectedDepts.length > 0 ? ` (${selectedDepts.length} dept.)` : ''}`
+          )}
+        </button>
+
+        {!isValid && !isOverLimit && (
+          <p className="text-xs text-slate-400 text-center">
+            Sélectionnez au moins un secteur et un département
+          </p>
+        )}
+      </div>
     </div>
   );
 }

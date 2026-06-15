@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Filters from './components/Filters';
 import ResultsTable from './components/ResultsTable';
 import Pagination, { PER_PAGE_ALL } from './components/Pagination';
@@ -19,6 +19,9 @@ export default function Home() {
     if (typeof window === 'undefined') return 0;
     return getCacheSize();
   });
+
+  // Paramètres avancés — réduit par défaut
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Profil de pondération du score (recalcul temps réel)
   const [scoringProfile, setScoringProfile] = useState(DEFAULT_PROFILE);
@@ -170,54 +173,66 @@ export default function Home() {
             </div>
             <Filters onSearch={handleSearch} isLoading={isLoading} />
 
-            {/* Sources */}
-            <div className="mt-4 bg-[#0D1B2A]/5 rounded-xl border border-slate-200 p-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Sources de données</p>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  <span className="text-xs text-slate-600">Base SIRENE (INSEE)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                  <span className="text-xs text-slate-600">Google Maps Places</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                  <span className="text-xs text-slate-600">Scraping site web</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Cache local */}
-            <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cache local</p>
-                {cacheSize > 0 && (
-                  <button
-                    onClick={handleClearCache}
-                    className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors"
-                    title="Vider le cache d'enrichissement"
-                  >
-                    Vider
-                  </button>
-                )}
-              </div>
-              {cacheSize > 0 ? (
-                <p className="text-xs text-slate-600">
-                  💾 <span className="font-semibold text-green-600">{cacheSize}</span> prospect{cacheSize > 1 ? 's' : ''} enrichi{cacheSize > 1 ? 's' : ''} en mémoire
-                </p>
-              ) : (
-                <p className="text-xs text-slate-400">Aucune donnée en cache</p>
-              )}
-              <p className="text-[10px] text-slate-400 mt-1 leading-tight">
-                Les données enrichies sont automatiquement restaurées à la prochaine recherche.
-              </p>
-            </div>
-
-            {/* Profil de scoring */}
+            {/* Paramètres avancés — accordéon */}
             <div className="mt-4">
-              <ScoringProfile profile={scoringProfile} onChange={setScoringProfile} />
+              <button
+                onClick={() => setShowAdvanced(v => !v)}
+                className="w-full flex items-center justify-between text-xs text-slate-500 hover:text-slate-700 font-medium px-1 py-2 transition-colors"
+              >
+                <span>⚙️ Paramètres avancés</span>
+                <span className="text-slate-400">{showAdvanced ? '▲' : '▼'}</span>
+              </button>
+
+              {showAdvanced && (
+                <div className="space-y-3 mt-1">
+                  {/* Sources */}
+                  <div className="bg-[#0D1B2A]/5 rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Sources de données</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span className="text-xs text-slate-600">Base SIRENE (INSEE)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                        <span className="text-xs text-slate-600">Google Maps Places</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        <span className="text-xs text-slate-600">Scraping site web</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cache local */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Données sauvegardées</p>
+                      {cacheSize > 0 && (
+                        <button
+                          onClick={handleClearCache}
+                          className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors"
+                        >
+                          Effacer
+                        </button>
+                      )}
+                    </div>
+                    {cacheSize > 0 ? (
+                      <p className="text-xs text-slate-600">
+                        💾 <span className="font-semibold text-green-600">{cacheSize}</span> prospect{cacheSize > 1 ? 's' : ''} enrichi{cacheSize > 1 ? 's' : ''} en mémoire
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-400">Aucune donnée sauvegardée</p>
+                    )}
+                    <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                      Les coordonnées trouvées sont automatiquement restaurées à la prochaine recherche.
+                    </p>
+                  </div>
+
+                  {/* Profil de scoring */}
+                  <ScoringProfile profile={scoringProfile} onChange={setScoringProfile} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -275,11 +290,13 @@ export default function Home() {
                       label="Prospects chauds"
                       sub="score > 70"
                       color="text-[#198754]"
+                      hint="Enrichissez vos prospects pour affiner le score"
                     />
                     <KpiCard
                       value={allResults.filter(r => r.enriched).length}
                       label="Enrichis"
                       color="text-[#0d6efd]"
+                      hint="Sélectionnez des lignes et cliquez Enrichir"
                     />
                     <KpiCard
                       value={
@@ -327,12 +344,15 @@ export default function Home() {
   );
 }
 
-function KpiCard({ value, label, sub, color }) {
+function KpiCard({ value, label, sub, color, hint }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
       <div className={`text-2xl font-bold ${color}`}>{value}</div>
       <div className="text-xs text-slate-500 mt-0.5">{label}</div>
       {sub && <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>}
+      {hint && value === 0 && (
+        <div className="text-[10px] text-blue-500 mt-1 leading-tight">{hint}</div>
+      )}
     </div>
   );
 }
