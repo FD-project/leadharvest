@@ -76,11 +76,18 @@ async function collectEntreprises({ naf, dept, trancheList, collected }) {
 
         const entreprise = normalizeEntreprise(raw);
 
+        // Filtre strict : le code NAF du siège doit correspondre au code demandé.
+        // L'API peut renvoyer des résultats "proches" dont le NAF siège diffère
+        // du filtre activite_principale appliqué au niveau entreprise.
+        const matchesNaf =
+          entreprise.naf_code === naf ||
+          entreprise.naf_code.replace('.', '') === naf.replace('.', '');
+
         const matchesTranche =
           trancheList.length === 0 ||
           trancheList.includes(entreprise.tranche_effectif);
 
-        if (matchesTranche) {
+        if (matchesNaf && matchesTranche) {
           collected.set(entreprise.siren, entreprise);
         }
       }
