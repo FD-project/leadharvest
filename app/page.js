@@ -25,6 +25,11 @@ export default function Home() {
   // Mode admin — accès libre (bypass paiement)
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Système de crédits — version de test : admin = 50 000 crédits
+  const CREDITS_KEY          = 'lh_credits';
+  const ADMIN_INIT_CREDITS   = 50000;
+  const [credits, setCredits] = useState(0);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const unlock = params.get('unlock');
@@ -34,7 +39,23 @@ export default function Home() {
       url.searchParams.delete('unlock');
       window.history.replaceState({}, '', url.toString());
     }
-    setIsAdmin(localStorage.getItem('lh_admin') === ADMIN_SECRET);
+    const admin = localStorage.getItem('lh_admin') === ADMIN_SECRET;
+    setIsAdmin(admin);
+    if (admin) {
+      // Initialise les crédits si première connexion admin
+      if (!localStorage.getItem(CREDITS_KEY)) {
+        localStorage.setItem(CREDITS_KEY, String(ADMIN_INIT_CREDITS));
+      }
+      setCredits(parseInt(localStorage.getItem(CREDITS_KEY) || String(ADMIN_INIT_CREDITS), 10));
+    }
+  }, []);
+
+  const handleDeductCredits = useCallback((amount) => {
+    setCredits((prev) => {
+      const next = Math.max(0, prev - amount);
+      localStorage.setItem(CREDITS_KEY, String(next));
+      return next;
+    });
   }, []);
 
   // Paramètres avancés — réduit par défaut
@@ -176,6 +197,13 @@ export default function Home() {
               <span className="text-sm text-amber-400 font-semibold">
                 {allResults.length} prospect{allResults.length > 1 ? 's' : ''} trouvé{allResults.length > 1 ? 's' : ''}
               </span>
+            )}
+            {isAdmin && (
+              <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-full px-3 py-1">
+                <span className="text-amber-400 text-sm">💎</span>
+                <span className="text-amber-300 text-xs font-bold">{credits.toLocaleString('fr-FR')}</span>
+                <span className="text-amber-500/70 text-xs">crédits</span>
+              </div>
             )}
             <a href="/tarifs" className="text-slate-300 hover:text-white text-sm transition-colors">Tarifs</a>
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">Beta</span>
@@ -353,6 +381,8 @@ export default function Home() {
                   allResults={allResults}
                   scoredResults={scoredResults}
                   isAdmin={isAdmin}
+                  credits={credits}
+                  onDeductCredits={handleDeductCredits}
                   filteredTotal={processedResults.length}
                   isLoading={isLoading}
                   onResultsUpdate={handleResultsUpdate}

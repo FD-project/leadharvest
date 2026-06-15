@@ -245,24 +245,25 @@ function ScoreBadge({ score, subscores, enriched, entreprise, disqualifie, raiso
   );
 }
 
-function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
+// Coût en crédits par entreprise
+const GOOGLE_CREDITS_UNIT = 10;
+const SCRAPE_CREDITS_UNIT = 5;
+
+function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin, credits = 0, onDeductCredits }) {
   const [sources, setSources] = useState({ google: true, scrape: false });
-  const [step, setStep] = useState('select'); // 'select' | 'paying' | 'done'
 
   const toggle = (key) => setSources((prev) => ({ ...prev, [key]: !prev[key] }));
   const hasSourceSelected = Object.values(sources).some(Boolean);
 
-  const GOOGLE_UNIT = 0.10;
-  const SCRAPE_UNIT = 0.05;
-  const googleCost = sources.google ? count * GOOGLE_UNIT : 0;
-  const scrapeCost = sources.scrape ? count * SCRAPE_UNIT : 0;
-  const totalCost = googleCost + scrapeCost;
+  const googleCredits = sources.google ? count * GOOGLE_CREDITS_UNIT : 0;
+  const scrapeCredits = sources.scrape ? count * SCRAPE_CREDITS_UNIT : 0;
+  const totalCredits  = googleCredits + scrapeCredits;
+  const canAfford     = isAdmin ? credits >= totalCredits : true;
+  const afterCredits  = Math.max(0, credits - totalCredits);
 
   const handleConfirm = () => {
-    if (isAdmin) { onLaunch(sources); return; }
-    setStep('paying');
-    setTimeout(() => setStep('done'), 2000);
-    setTimeout(() => onLaunch(sources), 3000);
+    if (onDeductCredits) onDeductCredits(totalCredits);
+    onLaunch(sources);
   };
 
   // Scraping disponible si : des sites sont déjà connus, OU si Google est coché (trouvera des sites)
@@ -279,6 +280,8 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden">
+
+        {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100">
           <div className="flex items-center justify-between">
             <div>
@@ -287,15 +290,26 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
                 {count} entreprise{count > 1 ? 's' : ''} sélectionnée{count > 1 ? 's' : ''}
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Solde crédits */}
+              {isAdmin && (
+                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                  <span className="text-sm">💎</span>
+                  <span className="text-xs font-bold text-amber-700">{credits.toLocaleString('fr-FR')}</span>
+                  <span className="text-[10px] text-amber-500">crédits</span>
+                </div>
+              )}
+              <button
+                onClick={onClose}
+                className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* Sources */}
         <div className="px-6 py-5 space-y-3">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
             Sources d'enrichissement
@@ -305,40 +319,54 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
             checked={sources.google}
             onChange={() => toggle('google')}
             label="Google Maps Places"
-            badge={`${count} × 0,10€`}
-            description="Téléphone · Site web · Fiche GMB · Note"
+            badge={`${count} × ${GOOGLE_CREDITS_UNIT} crédits`}
+            description="Téléphone · Site web · Fiche GMB"
           />
 
           <SourceOption
             checked={sources.scrape}
             onChange={() => !scrapeAvailable ? null : toggle('scrape')}
             label="Scraping email"
-            badge={`${count} × 0,05€`}
+            badge={`${count} × ${SCRAPE_CREDITS_UNIT} crédits`}
             description={scrapeDescription}
             disabled={!scrapeAvailable}
           />
         </div>
 
+        {/* Récap crédits */}
         {(sources.google || sources.scrape) && (
           <div className="mx-6 mb-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 space-y-1.5">
-            <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide mb-1">Coût estimé</p>
+            <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide mb-1">Coût en crédits</p>
             {sources.google && (
               <div className="flex items-center justify-between text-xs text-amber-700">
                 <span>Google Maps Places</span>
-                <span>{count} × 0,10€ = <strong>{googleCost.toFixed(2)}€</strong></span>
+                <span>{count} × {GOOGLE_CREDITS_UNIT} = <strong>{googleCredits} crédits</strong></span>
               </div>
             )}
             {sources.scrape && (
               <div className="flex items-center justify-between text-xs text-amber-700">
                 <span>Scraping email</span>
-                <span>{count} × 0,05€ = <strong>{scrapeCost.toFixed(2)}€</strong></span>
+                <span>{count} × {SCRAPE_CREDITS_UNIT} = <strong>{scrapeCredits} crédits</strong></span>
               </div>
             )}
-            {sources.google && sources.scrape && (
-              <div className="flex items-center justify-between text-xs text-amber-900 font-bold border-t border-amber-200 pt-1.5 mt-1">
-                <span>Total</span>
-                <span>~{totalCost.toFixed(2)}€</span>
+            <div className="flex items-center justify-between text-xs text-amber-900 font-bold border-t border-amber-200 pt-1.5 mt-1">
+              <span>Total</span>
+              <span>💎 {totalCredits} crédits</span>
+            </div>
+            {/* Solde après opération */}
+            {isAdmin && (
+              <div className="flex items-center justify-between text-[11px] text-amber-600 pt-0.5">
+                <span>Solde après opération</span>
+                <span className={afterCredits < 500 ? 'text-red-500 font-semibold' : ''}>
+                  {afterCredits.toLocaleString('fr-FR')} crédits restants
+                </span>
               </div>
+            )}
+            {/* Alerte solde insuffisant */}
+            {isAdmin && !canAfford && (
+              <p className="text-[11px] text-red-600 font-semibold pt-0.5">
+                ⚠️ Solde insuffisant — rechargez vos crédits.
+              </p>
             )}
           </div>
         )}
@@ -351,22 +379,6 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
           </div>
         )}
 
-        {/* Étape paiement simulé */}
-        {step === 'paying' && (
-          <div className="absolute inset-0 bg-white rounded-2xl flex flex-col items-center justify-center gap-4 z-10">
-            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-semibold text-slate-700">Traitement du paiement…</p>
-            <p className="text-xs text-slate-400">🔒 Paiement sécurisé</p>
-          </div>
-        )}
-        {step === 'done' && (
-          <div className="absolute inset-0 bg-white rounded-2xl flex flex-col items-center justify-center gap-3 z-10">
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl">✓</div>
-            <p className="text-sm font-semibold text-slate-700">Paiement accepté !</p>
-            <p className="text-xs text-slate-400">Lancement de l'enrichissement…</p>
-          </div>
-        )}
-
         <div className="px-6 pb-6 flex gap-3">
           <button
             onClick={onClose}
@@ -376,14 +388,17 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!hasSourceSelected}
+            disabled={!hasSourceSelected || (isAdmin && !canAfford)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              hasSourceSelected
+              hasSourceSelected && canAfford
                 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            {isAdmin ? 'Lancer l\'enrichissement' : `Payer ${totalCost.toFixed(2)}€ & Enrichir`}
+            {isAdmin
+              ? `Utiliser ${totalCredits} crédits & Enrichir`
+              : `Enrichir (${totalCredits} crédits)`
+            }
           </button>
         </div>
       </div>
@@ -548,6 +563,8 @@ export default function ResultsTable({
   isLoading,
   onResultsUpdate,
   isAdmin,
+  credits = 0,
+  onDeductCredits,
   // Sort & filtres contrôlés par page.js (s'appliquent sur allResults)
   sortField,
   sortDirection,
@@ -696,6 +713,8 @@ export default function ResultsTable({
           onClose={() => setShowEnrichModal(false)}
           onLaunch={handleEnrich}
           isAdmin={isAdmin}
+          credits={credits}
+          onDeductCredits={onDeductCredits}
         />
       )}
       {enrichProgress && (
