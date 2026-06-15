@@ -210,7 +210,12 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
 
   const toggle = (key) => setSources((prev) => ({ ...prev, [key]: !prev[key] }));
   const hasSourceSelected = Object.values(sources).some(Boolean);
-  const estimatedCost = sources.google ? (count * 0.034).toFixed(2) : '0.00';
+
+  const GOOGLE_UNIT = 0.10;
+  const SCRAPE_UNIT = 0.05;
+  const googleCost = sources.google ? count * GOOGLE_UNIT : 0;
+  const scrapeCost = sources.scrape ? count * SCRAPE_UNIT : 0;
+  const totalCost = googleCost + scrapeCost;
 
   const handleConfirm = () => {
     if (isAdmin) { onLaunch(sources); return; }
@@ -259,26 +264,48 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
             checked={sources.google}
             onChange={() => toggle('google')}
             label="Google Maps Places"
-            badge={`~${estimatedCost}€`}
+            badge={`${count} × 0,10€`}
             description="Téléphone · Site web · Fiche GMB · Note"
           />
 
           <SourceOption
             checked={sources.scrape}
             onChange={() => !scrapeAvailable ? null : toggle('scrape')}
-            label="Scraping site web"
-            badge="Gratuit"
-            badgeColor="text-green-600"
+            label="Scraping email"
+            badge={`${count} × 0,05€`}
             description={scrapeDescription}
             disabled={!scrapeAvailable}
           />
         </div>
 
-        {sources.google && (
-          <div className="mx-6 mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-            <p className="text-xs text-amber-700">
-              💡 Coût estimé : <strong>~{estimatedCost}€</strong> pour {count}{' '}
-              entreprise{count > 1 ? 's' : ''}
+        {(sources.google || sources.scrape) && (
+          <div className="mx-6 mb-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 space-y-1.5">
+            <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide mb-1">Coût estimé</p>
+            {sources.google && (
+              <div className="flex items-center justify-between text-xs text-amber-700">
+                <span>Google Maps Places</span>
+                <span>{count} × 0,10€ = <strong>{googleCost.toFixed(2)}€</strong></span>
+              </div>
+            )}
+            {sources.scrape && (
+              <div className="flex items-center justify-between text-xs text-amber-700">
+                <span>Scraping email</span>
+                <span>{count} × 0,05€ = <strong>{scrapeCost.toFixed(2)}€</strong></span>
+              </div>
+            )}
+            {sources.google && sources.scrape && (
+              <div className="flex items-center justify-between text-xs text-amber-900 font-bold border-t border-amber-200 pt-1.5 mt-1">
+                <span>Total</span>
+                <span>~{totalCost.toFixed(2)}€</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {sources.scrape && (
+          <div className="mx-6 mb-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              ⚠️ Les emails nominatifs générés (prénom.nom@domaine) sont des <strong>suggestions non vérifiées</strong> issues du registre SIRENE. Ils apparaissent dans une colonne dédiée de l'export. L'enrichissement est réservé à la prospection B2B conformément au RGPD.
             </p>
           </div>
         )}
@@ -315,7 +342,7 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin }) {
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            {isAdmin ? 'Lancer l\'enrichissement' : `Payer ${estimatedCost}€ & Enrichir`}
+            {isAdmin ? 'Lancer l\'enrichissement' : `Payer ${totalCost.toFixed(2)}€ & Enrichir`}
           </button>
         </div>
       </div>
@@ -930,13 +957,34 @@ const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onT
             <span className="text-slate-300 text-xs">{e.enriched ? '—' : 'Non enrichi'}</span>
           )}
           {e.email ? (
-            <a
-              href={`mailto:${e.email}`}
-              className="text-blue-600 hover:underline text-xs truncate max-w-[150px] block"
-              title={e.email}
-            >
-              {e.email}
-            </a>
+            <div className="flex flex-col gap-0.5">
+              <a
+                href={`mailto:${e.email}`}
+                className="text-blue-600 hover:underline text-xs truncate max-w-[150px] block"
+                title={e.email}
+              >
+                {e.email}
+              </a>
+              {/* Badge source email */}
+              {e.email_source === 'scraped' && (
+                <span className="text-[10px] text-green-600" title="Email trouvé sur le site web">🌐 scraping</span>
+              )}
+              {e.email_source === 'algorithmic_nominative' && (
+                <span className="text-[10px] text-blue-600" title="Email nominatif généré depuis SIRENE (prénom.nom@domaine) — à vérifier">👤 généré</span>
+              )}
+              {e.email_source === 'algorithmic_generic' && (
+                <span className="text-[10px] text-amber-600" title="Adresse générique générée (contact@domaine) — à vérifier">💡 généré</span>
+              )}
+              {/* Candidats nominatifs à tester */}
+              {e.email_candidates_nominative?.length > 0 && (
+                <span
+                  className="text-[10px] text-blue-500 cursor-help underline decoration-dotted"
+                  title={`Emails nominatifs à tester :\n${e.email_candidates_nominative.join('\n')}`}
+                >
+                  👤 {e.email_candidates_nominative.length} nominatif{e.email_candidates_nominative.length > 1 ? 's' : ''} à tester
+                </span>
+              )}
+            </div>
           ) : e.enriched ? (
             <span className="text-slate-300 text-xs">—</span>
           ) : null}

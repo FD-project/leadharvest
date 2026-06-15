@@ -24,6 +24,24 @@ const EMAIL_BLACKLIST = [
   'privacy@', 'legal@', 'dpo@', 'rgpd@',
 ];
 
+// Domaines plateformes/agrégateurs — jamais un site propre à l'entreprise
+// → on n'y scrape pas et on ne génère pas d'email algorithmique dessus
+const PLATFORM_DOMAINS = new Set([
+  // Réseaux sociaux
+  'facebook.com', 'fb.com', 'instagram.com', 'linkedin.com',
+  'twitter.com', 'x.com', 'youtube.com', 'tiktok.com', 'pinterest.com',
+  // Annuaires / plateformes françaises
+  'pages-jaunes.fr', 'pagesjaunes.fr', 'societe.com', 'verif.com',
+  'infogreffe.fr', 'pappers.fr', 'manageo.fr', 'kompass.com',
+  'banette.fr', 'lafourchette.com', 'tripadvisor.com', 'tripadvisor.fr',
+  'booking.com', 'google.com', 'maps.google.com',
+  'apple.com', 'yelp.com', 'yelp.fr',
+  // Constructeurs / franchises génériques
+  'maisons-du-monde.com', 'groupon.com', 'vistaprint.com',
+  // Créateurs de sites — domaine partagé
+  'jimdo.com', 'wix.com', 'weebly.com', 'webflow.io', 'myshopify.com',
+]);
+
 // ─── Handler principal ────────────────────────────────────────────────────────
 
 export async function POST(request) {
@@ -56,6 +74,13 @@ async function enrichEntreprise(entreprise) {
 
   const domain = extractDomain(entreprise.site_web);
 
+  // Rejeter les domaines plateformes (Facebook, Banette, etc.) — pas un site propre
+  // On vérifie aussi les sous-domaines (ex: fr-fr.facebook.com)
+  const isPlatform = !domain || [...PLATFORM_DOMAINS].some(
+    p => domain === p || domain.endsWith('.' + p)
+  );
+  if (isPlatform) return EMPTY(entreprise.siren);
+
   // ── Passe 1 : scraping HTML ────────────────────────────────────────────────
   let scrapedEmail = null;
   try {
@@ -67,32 +92,41 @@ async function enrichEntreprise(entreprise) {
     console.error(`Scraping SIREN ${entreprise.siren}:`, err.message);
   }
 
-  if (scrapedEmail) {
-    return { siren: entreprise.siren, email_website: scrapedEmail, email_source: 'scraped' };
+  // ── Passe 2 : génération algorithmique + vérification MX ─────────────────
+  // Toujours calculée pour exposer email_generated dans l'export,
+  // même quand le scraping a réussi.
+  let generatedEmail = null;
+  let nominative     = [];
+
+  if (domain) {
+    const hasMx = await checkMx(domain);
+    if (hasMx) {
+      const dirigeant = entreprise.dirigeant ?? {};
+      const combos = buildCombinations(
+        dirigeant.prenom ?? '',
+        dirigeant.nom    ?? '',
+        domain,
+      );
+      nominative     = combos.nominative;
+      generatedEmail = combos.nominative[0] ?? combos.generic[0] ?? null;
+    }
   }
 
-  // ── Passe 2 : génération algorithmique + vérification MX ─────────────────
-  if (!domain) return EMPTY(entreprise.siren);
+  // Priorité affichage : scrapé > généré
+  const best   = scrapedEmail ?? generatedEmail;
+  const source = scrapedEmail ? 'scraped'
+               : generatedEmail === nominative[0] ? 'algorithmic_nominative'
+               : 'algorithmic_generic';
 
-  const hasMx = await checkMx(domain);
-  if (!hasMx) return EMPTY(entreprise.siren);
-
-  const dirigeant = entreprise.dirigeant ?? {};
-  const { nominative, generic } = buildCombinations(
-    dirigeant.prenom ?? '',
-    dirigeant.nom    ?? '',
-    domain,
-  );
-
-  // Priorité : nominatif > générique
-  const best = nominative[0] ?? generic[0] ?? null;
   if (!best) return EMPTY(entreprise.siren);
 
   return {
-    siren:            entreprise.siren,
-    email_website:    best,
-    email_source:     nominative.length > 0 ? 'algorithmic_nominative' : 'algorithmic_generic',
-    email_candidates: [...nominative, ...generic],
+    siren:                       entreprise.siren,
+    email_website:               best,
+    email_scraped:               scrapedEmail  ?? null,
+    email_generated:             generatedEmail ?? null,
+    email_source:                source,
+    email_candidates_nominative: nominative,
   };
 }
 

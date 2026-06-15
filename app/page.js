@@ -174,6 +174,7 @@ export default function Home() {
                 {allResults.length} prospect{allResults.length > 1 ? 's' : ''} trouvé{allResults.length > 1 ? 's' : ''}
               </span>
             )}
+            <a href="/tarifs" className="text-slate-300 hover:text-white text-sm transition-colors">Tarifs</a>
             <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">Beta</span>
           </div>
         </div>
@@ -296,10 +297,11 @@ export default function Home() {
               <div>
                 {/* KPI cards */}
                 {!isLoading && allResults.length > 0 && (() => {
-                  const enrichedCount = allResults.filter(r => r.enriched).length;
-                  const telCount     = allResults.filter(r => r.telephone).length;
-                  const emailCount   = allResults.filter(r => r.email).length;
-                  const siteCount    = allResults.filter(r => r.site_web).length;
+                  const enrichedCount   = allResults.filter(r => r.enriched).length;
+                  const telCount        = allResults.filter(r => r.telephone).length;
+                  const emailScraped    = allResults.filter(r => r.email && r.email_source === 'scraped').length;
+                  const emailGenerated  = allResults.filter(r => r.email && (r.email_source === 'algorithmic_nominative' || r.email_source === 'algorithmic_generic')).length;
+                  const siteCount       = allResults.filter(r => r.site_web).length;
                   return (
                     <div className="space-y-3 mb-4">
                       {/* Ligne 1 — toujours visible */}
@@ -327,10 +329,11 @@ export default function Home() {
 
                       {/* Ligne 2 — résultats d'enrichissement, visible après enrichissement */}
                       {enrichedCount > 0 && (
-                        <div className="grid grid-cols-3 gap-3">
-                          <KpiCard value={telCount}   label="Téléphones trouvés" icon="📞" color="text-[#198754]" hint={telCount === 0 ? "Aucun téléphone trouvé" : null} />
-                          <KpiCard value={emailCount} label="Emails trouvés"     icon="📧" color="text-[#0d6efd]" hint={emailCount === 0 ? "Aucun email trouvé" : null} />
-                          <KpiCard value={siteCount}  label="Sites web trouvés"  icon="🌐" color="text-[#fd7e14]" hint={siteCount === 0 ? "Aucun site trouvé" : null} />
+                        <div className="grid grid-cols-4 gap-3">
+                          <KpiCard value={telCount}       label="Téléphones trouvés"  icon="📞" color="text-[#198754]" hint={telCount === 0 ? "Aucun téléphone trouvé" : null} />
+                          <KpiCard value={emailScraped}   label="Emails scrapés"      icon="📧" color="text-[#198754]" hint={emailScraped === 0 ? "Aucun email trouvé sur les sites" : "Emails extraits directement du site web"} />
+                          <KpiCard value={emailGenerated} label="Emails générés"      icon="💡" color="text-[#fd7e14]" hint={emailGenerated === 0 ? "—" : "Suggestions algorithmiques (contact@domaine) — à vérifier"} />
+                          <KpiCard value={siteCount}      label="Sites web trouvés"   icon="🌐" color="text-[#0d6efd]" hint={siteCount === 0 ? "Aucun site trouvé" : null} />
                         </div>
                       )}
                     </div>
@@ -368,6 +371,19 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Footer mentions légales */}
+      <footer className="border-t border-slate-200 bg-white mt-auto">
+        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
+          <span className="text-xs text-slate-400">© 2026 FD-Project — LeadHarvest</span>
+          <div className="flex items-center gap-4 text-xs text-slate-400">
+            <span>Usage strictement B2B · Données SIRENE + sources publiques</span>
+            <a href="/mentions-legales" className="hover:text-slate-600 underline underline-offset-2">
+              Mentions légales & RGPD
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
