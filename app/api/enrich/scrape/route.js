@@ -2,6 +2,7 @@
 
 const FETCH_TIMEOUT_MS = 4000;
 const MAX_BATCH_SIZE   = 10;
+const MAX_HTML_BYTES   = 500_000; // 500 ko — évite de charger des pages catalogue en entier
 
 // Pages tentées dans l'ordre (on s'arrête dès qu'un email est trouvé)
 const CONTACT_PATHS = [
@@ -47,23 +48,41 @@ export async function POST(request) {
 const EMPTY_RESULT = (siren) => ({ siren, email_website: null });
 
 /**
+ * Bloque les URLs pointant vers des ressources internes ou non-HTTP.
+ * Protège contre les attaques SSRF (Server-Side Request Forgery).
+ */
+function isSafeUrl(url) {
+  try {
+    const { hostname, protocol } = new URL(url);
+    if (!['http:', 'https:'].includes(protocol)) return false;
+    // Bloquer localhost et plages IP privées
+    if (/^(localhost|127\.\d+\.\d+\.\d+)$/.test(hostname)) return false;
+    if (/^10\.\d+\.\d+\.\d+$/.test(hostname))               return false;
+    if (/^192\.168\.\d+\.\d+$/.test(hostname))              return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)) return false;
+    if (hostname === '169.254.169.254')                      return false; // AWS metadata
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Tente d'extraire un email depuis le site web d'une entreprise.
- * Essaie plusieurs pages en parallèle et retourne le premier email valide trouvé.
+ * Parcourt les pages séquentiellement et s'arrête dès le premier email valide.
  */
 async function scrapeWebsite(entreprise) {
   if (!entreprise.site_web) return EMPTY_RESULT(entreprise.siren);
 
   const baseUrl = normalizeUrl(entreprise.site_web);
-  const urls    = CONTACT_PATHS.map((p) => baseUrl + p);
+
+  // Sécurité SSRF : rejeter toute URL interne ou non-HTTP
+  if (!isSafeUrl(baseUrl)) return EMPTY_RESULT(entreprise.siren);
 
   try {
-    // Fetch toutes les pages en parallèle, on prend le premier email valide
-    const fetchResults = await Promise.allSettled(urls.map(fetchAndExtractEmail));
-
-    for (const r of fetchResults) {
-      if (r.status === 'fulfilled' && r.value) {
-        return { siren: entreprise.siren, email_website: r.value };
-      }
+    for (const path of CONTACT_PATHS) {
+      const email = await fetchAndExtractEmail(baseUrl + path);
+      if (email) return { siren: entreprise.siren, email_website: email };
     }
   } catch (err) {
     console.error(`Erreur scraping SIREN ${entreprise.siren}:`, err);
@@ -74,6 +93,7 @@ async function scrapeWebsite(entreprise) {
 
 /**
  * Fetche une URL et en extrait le premier email valide.
+ * Limite la lecture à MAX_HTML_BYTES pour éviter de saturer la mémoire.
  * @returns {Promise<string|null>}
  */
 async function fetchAndExtractEmail(url) {
@@ -87,9 +107,23 @@ async function fetchAndExtractEmail(url) {
       redirect: 'follow',
     });
 
-    if (!res.ok) return null;
+    if (!res.ok || !res.body) return null;
 
-    const html = await res.text();
+    // Lecture limitée à MAX_HTML_BYTES — protège contre les pages volumineuses
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let html = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      if (html.length >= MAX_HTML_BYTES) {
+        reader.cancel().catch(() => {});
+        break;
+      }
+    }
+
     return extractEmail(html);
   } catch {
     return null; // timeout, SSL error, etc.
@@ -124,7 +158,7 @@ function extractEmail(html) {
  */
 function isValidEmail(email) {
   if (EMAIL_BLACKLIST.some((b) => email.includes(b)))   return false;
-  if (/\.(png|jpg|gif|svg|webp|css|js)$/i.test(email)) return false; // faux positifs dans src= attr
+  if (/\.(png|jpg|gif|svg|webp|css|js)$/i.test(email)) return false;
   if (email.includes('..'))                             return false;
   const tld = email.split('.').pop();
   if (tld.length > 6)                                   return false;

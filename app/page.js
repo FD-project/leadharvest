@@ -33,13 +33,19 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
 
-  // Pipeline : score (avec profil) → filtre score → filtre enrichissement → tri
+  // Étape 1 — Scoring : ne recalcule que si les données ou le profil changent.
+  // Isolé pour éviter 1 000 recalculs à chaque changement de filtre ou de tri.
+  const scoredResults = useMemo(
+    () => allResults.map((e) => withScore(e, scoringProfile)),
+    [allResults, scoringProfile]
+  );
+
+  // Étape 2 — Filtrage + tri : ne retouche pas les scores.
   const processedResults = useMemo(() => {
-    const scored   = allResults.map((e) => withScore(e, scoringProfile));
-    const byScore  = applyScoreFilter(scored, scoreFilter);
+    const byScore  = applyScoreFilter(scoredResults, scoreFilter);
     const byEnrich = applyEnrichFilter(byScore, enrichFilter);
     return applySort(byEnrich, sortField, sortDirection);
-  }, [allResults, scoreFilter, enrichFilter, sortField, sortDirection, scoringProfile]);
+  }, [scoredResults, scoreFilter, enrichFilter, sortField, sortDirection]);
 
   // PER_PAGE_ALL = Infinity → on retourne tout le tableau
   const totalPages = perPage === PER_PAGE_ALL ? 1 : Math.ceil(processedResults.length / perPage);
@@ -259,7 +265,7 @@ export default function Home() {
                 <ResultsTable
                   results={pageResults}
                   allResults={allResults}
-                  scoredResults={processedResults}
+                  scoredResults={scoredResults}
                   filteredTotal={processedResults.length}
                   isLoading={isLoading}
                   onResultsUpdate={handleResultsUpdate}

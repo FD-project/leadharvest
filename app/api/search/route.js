@@ -27,22 +27,40 @@ export async function GET(request) {
     ? tranches.split(',').map((t) => t.trim()).filter(Boolean)
     : [];
 
-  try {
-    // Map keyed by SIREN for deduplication
-    const collected = new Map();
+  // Validation des inputs contre des patterns stricts
+  const VALID_NAF_RE  = /^\d{4}[A-Z]$/;
+  const VALID_DEPT_RE = /^\d{2,3}$/;
 
-    for (const naf of nafList) {
-      for (const dept of deptList) {
-        await collectEntreprises({ naf, dept, trancheList, collected });
-        if (collected.size >= SIRENE_MAX_RESULTS) break;
-      }
+  if (!nafList.every((c) => VALID_NAF_RE.test(c))) {
+    return Response.json({ error: 'Code NAF invalide' }, { status: 400 });
+  }
+  if (!deptList.every((d) => VALID_DEPT_RE.test(d))) {
+    return Response.json({ error: 'Département invalide' }, { status: 400 });
+  }
+
+  // Concurrence maximale : 5 paires NAF × département en parallèle.
+  // Divise le temps de réponse par ~5 par rapport aux boucles séquentielles
+  // tout en respectant le throttle SIRENE par paire.
+  const CONCURRENCY = 5;
+
+  try {
+    const collected = new Map();
+    const pairs = nafList.flatMap((naf) => deptList.map((dept) => ({ naf, dept })));
+
+    for (let i = 0; i < pairs.length; i += CONCURRENCY) {
       if (collected.size >= SIRENE_MAX_RESULTS) break;
+      const chunk = pairs.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        chunk.map(({ naf, dept }) =>
+          collectEntreprises({ naf, dept, trancheList, collected })
+        )
+      );
     }
 
     const results = Array.from(collected.values());
     return Response.json({
-      total:   results.length,
-      capped:  results.length >= SIRENE_MAX_RESULTS, // true = plafond atteint, résultats tronqués
+      total:  results.length,
+      capped: results.length >= SIRENE_MAX_RESULTS,
       results,
     });
   } catch (error) {

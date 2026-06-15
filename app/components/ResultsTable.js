@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, memo, useCallback } from 'react';
 import { TRANCHES_EFFECTIF } from './data/naf';
 import {
   getScoreCategory,
@@ -46,7 +46,7 @@ function getFormeLabel(code) {
 
 function ScoreTooltip({ entreprise, subscores, position }) {
   const age = getAgeLabel(entreprise.date_creation);
-  const hasPhone = !!(entreprise.telephone ?? entreprise.telephone_pappers);
+  const hasPhone = !!entreprise.telephone;
 
   return (
     <div
@@ -419,6 +419,15 @@ function EnrichErrorBanner({ message, onDismiss }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Retourne l'URL uniquement si elle commence par http(s)://.
+ * Protège contre les XSS via javascript: ou data: dans site_web.
+ */
+function safeSiteUrl(url) {
+  if (!url) return null;
+  return /^https?:\/\//i.test(url.trim()) ? url.trim() : null;
+}
+
 const SCORE_FILTER_OPTIONS = [
   { key: 'all',  label: 'Tous' },
   { key: 'hot',  label: '🔥 Chaud' },
@@ -538,13 +547,13 @@ export default function ResultsTable({
 
   // ── Sélection ───────────────────────────────────────────────────────────────
 
-  const toggleSelect = (siren) => {
+  const toggleSelect = useCallback((siren) => {
     setSelected((prev) => {
       const next = new Set(prev);
       next.has(siren) ? next.delete(siren) : next.add(siren);
       return next;
     });
-  };
+  }, []);
 
   const togglePageSelection = () => {
     const pageSirens   = new Set(pageResults.map((r) => r.siren));
@@ -780,8 +789,8 @@ function SortableHeader({ label, field, onSort, SortIcon }) {
   );
 }
 
-function EntrepriseRow({ entreprise: e, selected, onToggle }) {
-  const telephone = e.telephone ?? e.telephone_pappers;
+const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onToggle }) {
+  const telephone = e.telephone;
 
   return (
     <tr
@@ -862,9 +871,9 @@ function EntrepriseRow({ entreprise: e, selected, onToggle }) {
 
       <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
         <div className="flex flex-col gap-1">
-          {e.site_web ? (
+          {safeSiteUrl(e.site_web) ? (
             <a
-              href={e.site_web}
+              href={safeSiteUrl(e.site_web)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:underline text-xs truncate max-w-[120px]"
@@ -887,7 +896,11 @@ function EntrepriseRow({ entreprise: e, selected, onToggle }) {
       </td>
     </tr>
   );
-}
+}, (prev, next) =>
+  prev.selected === next.selected &&
+  prev.entreprise === next.entreprise &&
+  prev.onToggle === next.onToggle
+);
 
 function SelectionFooter({ count, onEnrich }) {
   return (

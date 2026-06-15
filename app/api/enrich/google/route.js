@@ -28,6 +28,19 @@ export async function POST(request) {
     return Response.json({ results });
   } catch (error) {
     console.error('Erreur enrichissement Google Maps:', error);
+    // Quota dépassé ou clé invalide — signaler explicitement au client
+    if (error.message?.includes('OVER_QUERY_LIMIT')) {
+      return Response.json(
+        { error: 'Quota Google Maps dépassé — réessayez dans quelques secondes' },
+        { status: 429 }
+      );
+    }
+    if (error.message?.includes('REQUEST_DENIED')) {
+      return Response.json(
+        { error: 'Clé Google Maps invalide ou restreinte' },
+        { status: 503 }
+      );
+    }
     return Response.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -67,8 +80,17 @@ async function enrichWithGoogleMaps(entreprise, apiKey) {
     const findData = await findRes.json();
 
     const placeId = findData.candidates?.[0]?.place_id;
+
+    // Quota dépassé ou clé invalide : lever une erreur pour interrompre le batch
+    if (findData.status === 'OVER_QUERY_LIMIT') {
+      throw new Error('OVER_QUERY_LIMIT');
+    }
+    if (findData.status === 'REQUEST_DENIED') {
+      throw new Error('REQUEST_DENIED — vérifiez la clé GOOGLE_MAPS_API_KEY');
+    }
+
     if (!placeId || findData.status !== 'OK') {
-      return EMPTY_RESULT(entreprise.siren);
+      return { ...EMPTY_RESULT(entreprise.siren), gmb_absent: true };
     }
 
     // Appel 2 : récupérer les données de contact (Contact Data + Basic Data)
@@ -81,8 +103,12 @@ async function enrichWithGoogleMaps(entreprise, apiKey) {
     const detailRes  = await fetch(`${GOOGLE_PLACES_DETAIL_URL}?${detailParams}`);
     const detailData = await detailRes.json();
 
+    if (detailData.status === 'OVER_QUERY_LIMIT') {
+      throw new Error('OVER_QUERY_LIMIT');
+    }
+
     if (detailData.status !== 'OK' || !detailData.result) {
-      // Fiche GMB existe mais pas de détails récupérables
+      // Fiche GMB trouvée mais pas de détails de contact disponibles
       return { ...EMPTY_RESULT(entreprise.siren), gmb_present: true };
     }
 
