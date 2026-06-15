@@ -39,8 +39,6 @@ const EMPTY_RESULT = (siren) => ({
   gmb_present: false,
   telephone:   null,
   site_web:    null,
-  note_gmb:    null,
-  nb_avis:     0,
 });
 
 /**
@@ -50,7 +48,8 @@ const EMPTY_RESULT = (siren) => ({
  *   Note : formatted_phone_number et website ne sont PAS disponibles dans
  *   findplacefromtext, seulement dans place/details (Contact Data).
  *
- * Appel 2 — place/details → récupère téléphone, site, note, nb avis.
+ * Appel 2 — place/details → récupère téléphone et site web (Contact Data uniquement).
+ *   rating/user_ratings_total exclus → évite la facturation Atmosphere Data (-62% coût).
  */
 async function enrichWithGoogleMaps(entreprise, apiKey) {
   try {
@@ -75,7 +74,7 @@ async function enrichWithGoogleMaps(entreprise, apiKey) {
     // Appel 2 : récupérer les données de contact (Contact Data + Basic Data)
     const detailParams = new URLSearchParams({
       place_id: placeId,
-      fields:   'formatted_phone_number,website,rating,user_ratings_total',
+      fields:   'formatted_phone_number,website',
       key:      apiKey,
     });
 
@@ -104,7 +103,5 @@ function buildGoogleResult(siren, placeData, gmb_present = true) {
     gmb_present,
     telephone: placeData.formatted_phone_number ?? null,
     site_web:  placeData.website                ?? null,
-    note_gmb:  placeData.rating                 ?? null,
-    nb_avis:   placeData.user_ratings_total      ?? 0,
   };
 }

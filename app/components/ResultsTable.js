@@ -881,9 +881,6 @@ function EntrepriseRow({ entreprise: e, selected, onToggle }) {
           <span className={`text-xs ${e.gmb_present ? 'text-green-600' : e.enriched ? 'text-slate-400' : 'text-slate-300'}`}>
             {e.gmb_present ? '📍 GMB ✓' : e.enriched ? '📍 Pas de GMB' : '📍 —'}
           </span>
-          {e.note_gmb && (
-            <span className="text-xs text-amber-600">⭐ {e.note_gmb}</span>
-          )}
         </div>
       </td>
 
