@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, memo, useCallback } from 'react';
+import { useState, useRef, memo, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { TRANCHES_EFFECTIF } from './data/naf';
 import {
   getScoreCategory,
@@ -157,10 +158,13 @@ const SUBSCORE_STYLES = [
 
 function ScoreBadge({ score, subscores, enriched, entreprise, disqualifie, raison_dq }) {
   const [tooltipPos, setTooltipPos] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const wrapperRef = useRef(null);
   const category = disqualifie ? 'disqualifie' : getScoreCategory(score);
   const { badge, bar } = SCORE_CATEGORY_COLORS[category] ?? SCORE_CATEGORY_COLORS.cold;
   const label = SCORE_CATEGORY_LABELS[category] ?? '—';
+
+  useEffect(() => { setMounted(true); }, []);
 
   const handleMouseEnter = () => {
     if (!wrapperRef.current) return;
@@ -178,8 +182,9 @@ function ScoreBadge({ score, subscores, enriched, entreprise, disqualifie, raiso
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setTooltipPos(null)}
     >
-      {tooltipPos && subscores && entreprise && !disqualifie && (
-        <ScoreTooltip entreprise={entreprise} subscores={subscores} position={tooltipPos} />
+      {mounted && tooltipPos && subscores && entreprise && !disqualifie && createPortal(
+        <ScoreTooltip entreprise={entreprise} subscores={subscores} position={tooltipPos} />,
+        document.body
       )}
 
       {disqualifie ? (

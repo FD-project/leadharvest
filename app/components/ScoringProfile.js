@@ -6,16 +6,16 @@ import {
   DEFAULT_OPTIONS,
   PRESETS,
   EFFECTIF_ORDER,
-  MULTIPLIER_VALUES,
 } from '@/lib/scoring';
+import Tooltip from '@/app/components/Tooltip';
 
 export { DEFAULT_PROFILE };
 
-// ─── Configuration des 4 axes ─────────────────────────────────────────────────
+// ─── 4 axes de scoring ────────────────────────────────────────────────────────
 
 const DIMENSIONS = [
   {
-    key:  'adequation',
+    key:   'adequation',
     label: 'Adéquation',
     icon:  '🎯',
     hint:  'Pertinence du secteur d\'activité (code NAF)',
@@ -26,7 +26,7 @@ const DIMENSIONS = [
     },
   },
   {
-    key:  'capacite',
+    key:   'capacite',
     label: 'Capacité',
     icon:  '💰',
     hint:  'Effectif · Forme juridique · CA',
@@ -37,7 +37,7 @@ const DIMENSIONS = [
     },
   },
   {
-    key:  'maturite',
+    key:   'maturite',
     label: 'Maturité',
     icon:  '📅',
     hint:  'Ancienneté — zone idéale 3-15 ans',
@@ -48,7 +48,7 @@ const DIMENSIONS = [
     },
   },
   {
-    key:  'joignabilite',
+    key:   'joignabilite',
     label: 'Joignabilité',
     icon:  '📞',
     hint:  'Dirigeant identifié · Téléphone · Email',
@@ -60,16 +60,38 @@ const DIMENSIONS = [
   },
 ];
 
-const LEVELS = [
-  { key: 'ignorer',   label: 'Ignorer'   },
-  { key: 'normal',    label: 'Normal'    },
-  { key: 'prioriser', label: 'Prioriser' },
-];
+// Style visuel de chaque état (inactif / actif)
+const LEVEL_STYLE = {
+  ignorer: {
+    idle:   'text-slate-400 hover:text-slate-600 hover:bg-slate-100',
+    active: 'bg-slate-200 text-slate-700 font-semibold',
+    dot:    'bg-slate-400',
+    mark:   '–',
+  },
+  normal: {
+    idle:   'text-slate-400 hover:text-slate-600 hover:bg-slate-100',
+    active: 'bg-[#0D1B2A] text-white font-semibold',
+    dot:    'bg-slate-700',
+    mark:   '●',
+  },
+  prioriser: {
+    idle:   'text-slate-400 hover:text-amber-500 hover:bg-amber-50',
+    active: 'bg-amber-500 text-white font-semibold',
+    dot:    'bg-amber-500',
+    mark:   '↑',
+  },
+};
 
-// ─── Libelles des tranches d'effectif pour le filtre dur ─────────────────────
+const PRESET_EMOJIS = {
+  chasse_volume:     '🎯',
+  gros_tickets:      '💎',
+  terrain_cold_call: '📞',
+};
+
+// ─── Libelles effectif ────────────────────────────────────────────────────────
 
 const EFFECTIF_LABELS = {
-  NN:  'Non employeur',
+  NN:   'Non employeur',
   '00': '0 salarié',
   '01': '1-2 salariés',
   '02': '3-5 salariés',
@@ -82,55 +104,24 @@ const EFFECTIF_LABELS = {
   '32': '250-499 salariés',
 };
 
-const EFFECTIF_FILTER_OPTIONS = EFFECTIF_ORDER.slice(0, 12); // NN -> 32
+const EFFECTIF_FILTER_OPTIONS = EFFECTIF_ORDER.slice(0, 12);
 
-// ─── Tooltip universel ────────────────────────────────────────────────────────
-
-function Tooltip({ text, children }) {
-  const [show, setShow] = useState(false);
-  return (
-    <span
-      className="relative inline-flex"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      {children}
-      {show && (
-        <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-slate-900 text-white text-[11px] rounded-lg px-3 py-2 leading-snug shadow-xl pointer-events-none">
-          {text}
-          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-        </span>
-      )}
-    </span>
-  );
-}
-
-// ─── Popup d'alerte (>1 axe ignore) ──────────────────────────────────────────
+// ─── Popup alerte (>1 axe ignore) ────────────────────────────────────────────
 
 function AlertModal({ onConfirm, onCancel }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm mx-4">
         <div className="text-3xl mb-3 text-center">⚠️</div>
-        <h3 className="font-bold text-slate-800 text-base mb-2 text-center">
-          Score peu fiable
-        </h3>
+        <h3 className="font-bold text-slate-800 text-base mb-2 text-center">Score peu fiable</h3>
         <p className="text-sm text-slate-600 leading-relaxed mb-4">
-          Vous ignorez plus d'un axe. Le score repose alors sur trop peu de critères
-          et perd en fiabilité — par exemple, ignorer Capacité et Adéquation fait
-          reposer la note presque entièrement sur la Joignabilité.
+          Vous ignorez plus d'un axe. Le score repose alors sur trop peu de critères et perd en fiabilité.
         </p>
         <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-          >
+          <button onClick={onCancel} className="flex-1 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
             Annuler
           </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors"
-          >
+          <button onClick={onConfirm} className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors">
             Continuer quand même
           </button>
         </div>
@@ -139,87 +130,187 @@ function AlertModal({ onConfirm, onCancel }) {
   );
 }
 
+// ─── Sélecteur d'axe ─────────────────────────────────────────────────────────
+
+function AxisRow({ dim, value, onChange }) {
+  const currentStyle = LEVEL_STYLE[value] || LEVEL_STYLE.normal;
+
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <Tooltip text={dim.hint}>
+        <div className="flex items-center gap-1.5 w-28 shrink-0 cursor-help">
+          <span className="text-sm">{dim.icon}</span>
+          <span className="text-xs text-slate-700 font-medium leading-tight">{dim.label}</span>
+        </div>
+      </Tooltip>
+
+      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${currentStyle.dot}`} />
+
+      <div className="flex gap-1 flex-1 justify-end">
+        {Object.entries(LEVEL_STYLE).map(([lkey, ls]) => {
+          const isActive = value === lkey;
+          return (
+            <Tooltip key={lkey} text={dim.tooltips[lkey]}>
+              <button
+                onClick={() => onChange(lkey)}
+                className={`
+                  text-[11px] px-2.5 py-1 rounded-lg border transition-all duration-150
+                  ${isActive
+                    ? `${ls.active} border-transparent shadow-sm`
+                    : `${ls.idle} border-slate-100`
+                  }
+                `}
+              >
+                <span className="mr-0.5 opacity-70">{ls.mark}</span>
+                {lkey === 'ignorer' ? 'Ignorer' : lkey === 'normal' ? 'Normal' : 'Prioriser'}
+              </button>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Accordéon section ────────────────────────────────────────────────────────
+
+function AccordionSection({ label, icon, open, onToggle, active, children }) {
+  return (
+    <div className={`rounded-lg border transition-colors ${active ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100'}`}>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 transition-colors"
+      >
+        <span className="flex items-center gap-1.5">
+          <span>{icon}</span>
+          <span>{label}</span>
+          {active && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block ml-0.5" />}
+        </span>
+        <span className={`text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-1 border-t border-slate-100 text-xs">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Slider seuil ─────────────────────────────────────────────────────────────
+
+function ThresholdSlider({ label, tooltip, value, min, max, color, onChange }) {
+  return (
+    <div>
+      <Tooltip text={tooltip}>
+        <label className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium mb-1.5 cursor-help">
+          <span className={`w-2 h-2 rounded-full ${color} inline-block`} />
+          {label}
+          <strong className="text-slate-700 ml-auto">{value}</strong>
+          <span className="text-slate-400">ℹ</span>
+        </label>
+      </Tooltip>
+      <input type="range" min={min} max={max} value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-amber-500 h-1.5 cursor-pointer"
+      />
+      <div className="flex justify-between text-[10px] text-slate-300 mt-0.5">
+        <span>{min}</span><span>{max}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Editeur liste NAF ────────────────────────────────────────────────────────
+
+function NafListEditor({ label, tooltip, values, onChange, colorClass }) {
+  const [input, setInput] = useState('');
+  const add = () => {
+    const code = input.trim().toUpperCase();
+    if (code && !values.includes(code)) onChange([...values, code]);
+    setInput('');
+  };
+  const remove = (c) => onChange(values.filter((x) => x !== c));
+  const isGreen = colorClass === 'text-green-600';
+
+  return (
+    <div>
+      <Tooltip text={tooltip}>
+        <label className={`text-[11px] font-semibold ${colorClass} mb-1 block cursor-help`}>
+          {label} ℹ
+        </label>
+      </Tooltip>
+      <div className="flex gap-1 mb-1.5">
+        <input
+          type="text" value={input} maxLength={6} placeholder="Ex : 43, 4391A"
+          onChange={(e) => setInput(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+          className="flex-1 text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white text-slate-700"
+        />
+        <button onClick={add} className="px-2.5 py-1 rounded-lg bg-slate-700 text-white text-xs font-bold hover:bg-slate-800 transition-colors">+</button>
+      </div>
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {values.map((code) => (
+            <span key={code} className={`text-[10px] font-mono px-1.5 py-0.5 rounded border flex items-center gap-1 ${isGreen ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+              {code}
+              <button onClick={() => remove(code)} className="hover:opacity-60">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function ScoringProfile({ profile, options, onChange, onOptionsChange }) {
-  const [showAlert, setShowAlert] = useState(false);
-  const [pendingProfile, setPendingProfile] = useState(null);
-
-  const [openSection, setOpenSection] = useState(null); // 'filtres' | 'naf' | 'seuils' | 'geo'
+  const [showAlert, setShowAlert]     = useState(false);
+  const [pendingProfile, setPending]  = useState(null);
+  const [openSection, setOpenSection] = useState(null);
 
   const opts = options || DEFAULT_OPTIONS;
 
-  // Nombre d'axes sur "ignorer"
   const countIgnored = Object.values(profile).filter((v) => v === 'ignorer').length;
 
-  // Changement d'un axe individuel
   const handleAxisChange = (key, value) => {
-    const newProfile = { ...profile, [key]: value };
-    const newIgnored = Object.values(newProfile).filter((v) => v === 'ignorer').length;
-    if (newIgnored > 1) {
-      setPendingProfile(newProfile);
-      setShowAlert(true);
-    } else {
-      onChange(newProfile);
-    }
+    const next = { ...profile, [key]: value };
+    const ignored = Object.values(next).filter((v) => v === 'ignorer').length;
+    if (ignored > 1) { setPending(next); setShowAlert(true); }
+    else onChange(next);
   };
 
-  // Application d'un preset (sans declencher l'alerte)
-  const applyPreset = (presetKey) => {
-    onChange({ ...PRESETS[presetKey].profile });
-  };
+  const applyPreset = (presetKey) => onChange({ ...PRESETS[presetKey].profile });
 
-  // Confirmation alerte
-  const confirmAlert = () => {
-    if (pendingProfile) onChange(pendingProfile);
-    setPendingProfile(null);
-    setShowAlert(false);
-  };
-
-  const cancelAlert = () => {
-    setPendingProfile(null);
-    setShowAlert(false);
-  };
-
-  // Reset complet
   const isDefault =
     Object.keys(DEFAULT_PROFILE).every((k) => profile[k] === 'normal') &&
     JSON.stringify(opts) === JSON.stringify(DEFAULT_OPTIONS);
 
-  const handleReset = () => {
-    onChange({ ...DEFAULT_PROFILE });
-    onOptionsChange?.({ ...DEFAULT_OPTIONS });
-  };
+  const setFiltre = (k, v) => onOptionsChange?.({ ...opts, filtres: { ...opts.filtres, [k]: v } });
+  const setSeuil  = (k, v) => onOptionsChange?.({ ...opts, seuils:  { ...opts.seuils,  [k]: v } });
+  const setGeo    = (k, v) => onOptionsChange?.({ ...opts, geo:     { ...opts.geo,     [k]: v } });
+  const setNaf    = (k, v) => onOptionsChange?.({ ...opts, naf:     { ...opts.naf,     [k]: v } });
 
-  // Helpers options
-  const setFiltre = (key, value) =>
-    onOptionsChange?.({ ...opts, filtres: { ...opts.filtres, [key]: value } });
-  const setSeuil = (key, value) =>
-    onOptionsChange?.({ ...opts, seuils: { ...opts.seuils, [key]: value } });
-  const setGeo = (key, value) =>
-    onOptionsChange?.({ ...opts, geo: { ...opts.geo, [key]: value } });
-  const setNaf = (key, value) =>
-    onOptionsChange?.({ ...opts, naf: { ...opts.naf, [key]: value } });
-
-  const toggleSection = (key) => setOpenSection((s) => (s === key ? null : key));
+  const toggle = (key) => setOpenSection((s) => (s === key ? null : key));
 
   return (
     <>
-      {showAlert && <AlertModal onConfirm={confirmAlert} onCancel={cancelAlert} />}
+      {showAlert && (
+        <AlertModal
+          onConfirm={() => { if (pendingProfile) onChange(pendingProfile); setPending(null); setShowAlert(false); }}
+          onCancel={() => { setPending(null); setShowAlert(false); }}
+        />
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Profil de scoring
-          </p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Profil de scoring</p>
           {!isDefault && (
-            <button
-              onClick={handleReset}
-              className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors"
-              title="Remettre le profil standard"
-            >
+            <button onClick={() => { onChange({ ...DEFAULT_PROFILE }); onOptionsChange?.({ ...DEFAULT_OPTIONS }); }}
+              className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors">
               ↺ Standard
             </button>
           )}
@@ -227,15 +318,17 @@ export default function ScoringProfile({ profile, options, onChange, onOptionsCh
 
         {/* Presets */}
         <div>
-          <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1.5">Presets métier</p>
-          <div className="flex gap-1.5 flex-wrap">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Presets métier</p>
+          <div className="grid grid-cols-1 gap-1.5">
             {Object.entries(PRESETS).map(([key, preset]) => (
               <Tooltip key={key} text={preset.tooltip}>
                 <button
                   onClick={() => applyPreset(key)}
-                  className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:border-amber-400 hover:text-amber-700 hover:bg-amber-50 transition-colors font-medium"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-100 text-left hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800 transition-all text-xs text-slate-600 font-medium group"
                 >
-                  {preset.icon} {preset.label}
+                  <span className="text-base leading-none">{PRESET_EMOJIS[key]}</span>
+                  <span>{preset.label}</span>
+                  <span className="ml-auto text-slate-300 group-hover:text-amber-400 text-[10px]">appliquer →</span>
                 </button>
               </Tooltip>
             ))}
@@ -243,211 +336,107 @@ export default function ScoringProfile({ profile, options, onChange, onOptionsCh
         </div>
 
         {/* 4 axes */}
-        <div className="space-y-2">
-          {DIMENSIONS.map(({ key, label, icon, hint, tooltips }) => (
-            <div key={key} className="flex items-center gap-2">
-              <Tooltip text={hint}>
-                <span className="text-xs text-slate-600 w-24 shrink-0 cursor-help">
-                  {icon} {label}
-                </span>
-              </Tooltip>
-              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium flex-1">
-                {LEVELS.map(({ key: lkey, label: llabel }) => (
-                  <Tooltip key={lkey} text={tooltips[lkey]}>
-                    <button
-                      onClick={() => handleAxisChange(key, lkey)}
-                      className={`flex-1 py-1.5 transition-colors ${
-                        profile[key] === lkey
-                          ? lkey === 'prioriser'
-                            ? 'bg-amber-500 text-white'
-                            : lkey === 'ignorer'
-                              ? 'bg-slate-400 text-white'
-                              : 'bg-slate-700 text-white'
-                          : 'text-slate-500 hover:bg-slate-50'
-                      }`}
-                    >
-                      {llabel}
-                    </button>
-                  </Tooltip>
-                ))}
-              </div>
-            </div>
+        <div className="space-y-0.5 border-t border-slate-100 pt-3">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Pondération des axes</p>
+          {DIMENSIONS.map((dim) => (
+            <AxisRow
+              key={dim.key}
+              dim={dim}
+              value={profile[dim.key] || 'normal'}
+              onChange={(v) => handleAxisChange(dim.key, v)}
+            />
           ))}
         </div>
 
         {countIgnored > 1 && (
-          <p className="text-[10px] text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5 leading-snug">
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-snug">
             ⚠️ Score reposant sur peu de critères — fiabilité réduite.
           </p>
         )}
 
-        {/* Accordeons options avancees */}
-        <div className="border-t border-slate-100 pt-3 space-y-1">
+        {/* Options avancées */}
+        <div className="space-y-1.5 border-t border-slate-100 pt-3">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Options avancées</p>
 
           {/* Filtres durs */}
-          <AccordionSection
-            label="Filtres durs"
-            icon="🚧"
-            open={openSection === 'filtres'}
-            onToggle={() => toggleSection('filtres')}
-            active={opts.filtres.effectif_min != null || opts.filtres.anciennete_min != null}
-          >
-            {/* Effectif minimum */}
-            <div className="space-y-1">
-              <Tooltip text="Les entreprises sous ce seuil seront écartées avant calcul, même si elles cochent le reste.">
-                <label className="text-[11px] text-slate-500 font-medium cursor-help">
-                  Effectif minimum ℹ
-                </label>
-              </Tooltip>
-              <select
-                value={opts.filtres.effectif_min ?? ''}
-                onChange={(e) => setFiltre('effectif_min', e.target.value || null)}
-                className="w-full text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700"
-              >
-                <option value="">Aucun seuil</option>
-                {EFFECTIF_FILTER_OPTIONS.map((code) => (
-                  <option key={code} value={code}>
-                    {EFFECTIF_LABELS[code] ?? code}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Anciennete minimum */}
-            <div className="space-y-1 mt-2">
-              <Tooltip text="Exclut les entreprises trop récentes — trop fragiles pour investir.">
-                <label className="text-[11px] text-slate-500 font-medium cursor-help">
-                  Ancienneté minimum (années) ℹ
-                </label>
-              </Tooltip>
-              <input
-                type="number"
-                min="0"
-                max="50"
-                value={opts.filtres.anciennete_min ?? ''}
-                onChange={(e) => setFiltre('anciennete_min', e.target.value ? Number(e.target.value) : null)}
-                placeholder="Ex : 3"
-                className="w-full text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700"
-              />
+          <AccordionSection label="Filtres durs" icon="🚧" open={openSection === 'filtres'} onToggle={() => toggle('filtres')}
+            active={opts.filtres.effectif_min != null || opts.filtres.anciennete_min != null}>
+            <div className="space-y-3 mt-1">
+              <div>
+                <Tooltip text="Les entreprises sous ce seuil seront écartées avant calcul, même si elles cochent le reste.">
+                  <label className="text-[11px] text-slate-500 font-medium block mb-1 cursor-help">Effectif minimum ℹ</label>
+                </Tooltip>
+                <select value={opts.filtres.effectif_min ?? ''} onChange={(e) => setFiltre('effectif_min', e.target.value || null)}
+                  className="w-full text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700">
+                  <option value="">Aucun seuil</option>
+                  {EFFECTIF_FILTER_OPTIONS.map((code) => (
+                    <option key={code} value={code}>{EFFECTIF_LABELS[code] ?? code}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Tooltip text="Exclut les entreprises trop récentes — trop fragiles pour investir.">
+                  <label className="text-[11px] text-slate-500 font-medium block mb-1 cursor-help">Ancienneté minimum (années) ℹ</label>
+                </Tooltip>
+                <input type="number" min="0" max="50" value={opts.filtres.anciennete_min ?? ''} placeholder="Ex : 3"
+                  onChange={(e) => setFiltre('anciennete_min', e.target.value ? Number(e.target.value) : null)}
+                  className="w-full text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700" />
+              </div>
             </div>
           </AccordionSection>
 
           {/* Listes NAF */}
-          <AccordionSection
-            label="Listes NAF"
-            icon="📋"
-            open={openSection === 'naf'}
-            onToggle={() => toggleSection('naf')}
-            active={opts.naf.whitelist.length > 0 || opts.naf.blacklist.length > 0}
-          >
-            <NafListEditor
-              label="Liste blanche"
-              tooltip="Ces codes NAF obtiennent automatiquement la note maximale en Adéquation."
-              values={opts.naf.whitelist}
-              onChange={(v) => setNaf('whitelist', v)}
-              colorClass="text-green-600"
-            />
-            <NafListEditor
-              label="Liste noire"
-              tooltip="Ces codes NAF sont exclus de vos résultats, quels que soient les autres critères."
-              values={opts.naf.blacklist}
-              onChange={(v) => setNaf('blacklist', v)}
-              colorClass="text-red-600"
-              className="mt-2"
-            />
+          <AccordionSection label="Listes NAF" icon="📋" open={openSection === 'naf'} onToggle={() => toggle('naf')}
+            active={opts.naf.whitelist.length > 0 || opts.naf.blacklist.length > 0}>
+            <div className="space-y-3 mt-1">
+              <NafListEditor label="Liste blanche" tooltip="Ces codes NAF obtiennent automatiquement la note maximale en Adéquation."
+                values={opts.naf.whitelist} onChange={(v) => setNaf('whitelist', v)} colorClass="text-green-600" />
+              <NafListEditor label="Liste noire" tooltip="Ces codes NAF sont exclus de vos résultats, quels que soient les autres critères."
+                values={opts.naf.blacklist} onChange={(v) => setNaf('blacklist', v)} colorClass="text-red-600" />
+            </div>
           </AccordionSection>
 
-          {/* Seuils HOT/WARM */}
-          <AccordionSection
-            label="Seuils HOT / WARM"
-            icon="🌡️"
-            open={openSection === 'seuils'}
-            onToggle={() => toggleSection('seuils')}
-            active={
-              opts.seuils.hot  !== DEFAULT_OPTIONS.seuils.hot ||
-              opts.seuils.warm !== DEFAULT_OPTIONS.seuils.warm
-            }
-          >
-            <ThresholdSlider
-              label="Seuil Chaud (HOT)"
-              tooltip="Les prospects au-dessus de ce seuil sont prioritaires — contactez-les en premier."
-              value={opts.seuils.hot}
-              min={opts.seuils.warm + 5}
-              max={95}
-              color="bg-red-500"
-              onChange={(v) => setSeuil('hot', v)}
-            />
-            <ThresholdSlider
-              label="Seuil Tiède (WARM)"
-              tooltip="Les prospects entre ce seuil et le seuil Chaud valent la peine d'être contactés."
-              value={opts.seuils.warm}
-              min={5}
-              max={opts.seuils.hot - 5}
-              color="bg-amber-500"
-              onChange={(v) => setSeuil('warm', v)}
-              className="mt-3"
-            />
+          {/* Seuils */}
+          <AccordionSection label="Seuils HOT / WARM" icon="🌡️" open={openSection === 'seuils'} onToggle={() => toggle('seuils')}
+            active={opts.seuils.hot !== DEFAULT_OPTIONS.seuils.hot || opts.seuils.warm !== DEFAULT_OPTIONS.seuils.warm}>
+            <div className="space-y-3 mt-1">
+              <ThresholdSlider label="Seuil Chaud (HOT)" tooltip="Les prospects au-dessus de ce seuil sont prioritaires — contactez-les en premier."
+                value={opts.seuils.hot} min={opts.seuils.warm + 5} max={95} color="bg-red-400"
+                onChange={(v) => setSeuil('hot', v)} />
+              <ThresholdSlider label="Seuil Tiède (WARM)" tooltip="Les prospects entre ce seuil et le seuil Chaud valent la peine d'être contactés."
+                value={opts.seuils.warm} min={5} max={opts.seuils.hot - 5} color="bg-amber-400"
+                onChange={(v) => setSeuil('warm', v)} />
+            </div>
           </AccordionSection>
 
-          {/* Bonus geo */}
-          <AccordionSection
-            label="Bonus géographique"
-            icon="📍"
-            open={openSection === 'geo'}
-            onToggle={() => toggleSection('geo')}
-            active={opts.geo.actif}
-          >
-            <Tooltip text="Les prospects proches de vous remontent dans le classement. Pratique pour cibler votre zone de chalandise.">
-              <label className="flex items-center gap-2 cursor-pointer mb-2">
-                <input
-                  type="checkbox"
-                  checked={opts.geo.actif}
-                  onChange={(e) => setGeo('actif', e.target.checked)}
-                  className="rounded border-slate-300"
-                />
-                <span className="text-xs text-slate-600 font-medium">
-                  Activer le bonus de proximité ℹ
-                </span>
-              </label>
-            </Tooltip>
-
-            {opts.geo.actif && (
-              <div className="space-y-2 pl-1">
-                <div>
-                  <label className="text-[11px] text-slate-500 font-medium block mb-1">
-                    Départements cibles (séparés par des virgules)
-                  </label>
-                  <input
-                    type="text"
-                    value={opts.geo.departements_cibles.join(', ')}
-                    onChange={(e) =>
-                      setGeo(
-                        'departements_cibles',
-                        e.target.value
-                          .split(',')
-                          .map((s) => s.trim())
-                          .filter(Boolean)
-                      )
-                    }
-                    placeholder="Ex : 73, 74, 01"
-                    className="w-full text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700"
-                  />
+          {/* Bonus géo */}
+          <AccordionSection label="Bonus géographique" icon="📍" open={openSection === 'geo'} onToggle={() => toggle('geo')}
+            active={opts.geo.actif}>
+            <div className="mt-1 space-y-2">
+              <Tooltip text="Les prospects proches de vous remontent dans le classement. Pratique pour cibler votre zone de chalandise.">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={opts.geo.actif} onChange={(e) => setGeo('actif', e.target.checked)}
+                    className="rounded border-slate-300 accent-amber-500" />
+                  <span className="text-[11px] text-slate-600 font-medium">Activer le bonus de proximité ℹ</span>
+                </label>
+              </Tooltip>
+              {opts.geo.actif && (
+                <div className="space-y-2 pl-1 pt-1">
+                  <div>
+                    <label className="text-[11px] text-slate-500 font-medium block mb-1">Départements cibles (séparés par des virgules)</label>
+                    <input type="text" value={opts.geo.departements_cibles.join(', ')} placeholder="Ex : 73, 74, 01"
+                      onChange={(e) => setGeo('departements_cibles', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+                      className="w-full text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] text-slate-500 font-medium shrink-0">Bonus (pts)</label>
+                    <input type="number" min="1" max="30" value={opts.geo.bonus}
+                      onChange={(e) => setGeo('bonus', Number(e.target.value))}
+                      className="w-20 text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[11px] text-slate-500 font-medium block mb-1">
-                    Bonus (points)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={opts.geo.bonus}
-                    onChange={(e) => setGeo('bonus', Number(e.target.value))}
-                    className="w-24 text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700"
-                  />
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </AccordionSection>
         </div>
 
@@ -458,119 +447,5 @@ export default function ScoringProfile({ profile, options, onChange, onOptionsCh
         )}
       </div>
     </>
-  );
-}
-
-// ─── Sous-composants locaux ────────────────────────────────────────────────────
-
-function AccordionSection({ label, icon, open, onToggle, active, children }) {
-  return (
-    <div className="rounded-lg border border-slate-100 overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-      >
-        <span className="flex items-center gap-1.5">
-          {icon} {label}
-          {active && (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-          )}
-        </span>
-        <span className="text-slate-400">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="px-3 pb-3 pt-1 text-xs bg-slate-50/60 border-t border-slate-100">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ThresholdSlider({ label, tooltip, value, min, max, color, onChange, className = '' }) {
-  return (
-    <div className={className}>
-      <Tooltip text={tooltip}>
-        <label className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mb-1 cursor-help">
-          <span className={`inline-block w-2 h-2 rounded-full ${color}`} />
-          {label} : <strong className="text-slate-700 ml-1">{value}</strong> ℹ
-        </label>
-      </Tooltip>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-amber-500"
-      />
-      <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
-        <span>{min}</span>
-        <span>{max}</span>
-      </div>
-    </div>
-  );
-}
-
-function NafListEditor({ label, tooltip, values, onChange, colorClass, className = '' }) {
-  const [input, setInput] = useState('');
-
-  const add = () => {
-    const code = input.trim().toUpperCase();
-    if (code && !values.includes(code)) {
-      onChange([...values, code]);
-    }
-    setInput('');
-  };
-
-  const remove = (code) => onChange(values.filter((c) => c !== code));
-
-  return (
-    <div className={className}>
-      <Tooltip text={tooltip}>
-        <label className={`text-[11px] font-medium ${colorClass} mb-1 block cursor-help`}>
-          {label} ℹ
-        </label>
-      </Tooltip>
-      <div className="flex gap-1 mb-1.5">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && add()}
-          placeholder="Ex : 43, 4391A"
-          maxLength={6}
-          className="flex-1 text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white text-slate-700"
-        />
-        <button
-          onClick={add}
-          className="text-xs px-2 py-1 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors font-medium"
-        >
-          +
-        </button>
-      </div>
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {values.map((code) => (
-            <span
-              key={code}
-              className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                colorClass === 'text-green-600'
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-red-50 border-red-200 text-red-700'
-              } flex items-center gap-1`}
-            >
-              {code}
-              <button
-                onClick={() => remove(code)}
-                className="hover:opacity-70 ml-0.5"
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
