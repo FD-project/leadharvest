@@ -145,7 +145,7 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-white font-bold text-xl tracking-tight">LeadHarvest</h1>
-              <p className="text-slate-400 text-xs">Génération de leads B2B — PME & Artisans France</p>
+              <p className="text-slate-400 text-xs">Génération de leads B2B — vos prospects PME & artisans en 5 minutes</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
