@@ -282,30 +282,41 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin, credits = 
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden">
 
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100">
-          <div className="flex items-center justify-between">
+        <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+          <div className="flex items-start justify-between mb-3">
             <div>
               <h2 className="font-bold text-slate-900 text-lg">Enrichir les données</h2>
               <p className="text-slate-500 text-sm mt-0.5">
                 {count} entreprise{count > 1 ? 's' : ''} sélectionnée{count > 1 ? 's' : ''}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Solde crédits */}
-              {isAdmin && (
-                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                  <span className="text-sm">💎</span>
-                  <span className="text-xs font-bold text-amber-700">{credits.toLocaleString('fr-FR')}</span>
-                  <span className="text-[10px] text-amber-500">crédits</span>
-                </div>
-              )}
-              <button
-                onClick={onClose}
-                className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center"
-              >
-                ✕
-              </button>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Solde disponible — toujours visible */}
+          <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 ${canAfford ? 'bg-slate-50 border border-slate-200' : 'bg-red-50 border border-red-200'}`}>
+            <div className="flex items-center gap-2">
+              <span className="text-base">💎</span>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Votre solde</p>
+                <p className={`text-sm font-bold ${canAfford ? 'text-slate-800' : 'text-red-600'}`}>
+                  {credits.toLocaleString('fr-FR')} crédits
+                </p>
+              </div>
             </div>
+            {hasSourceSelected && (
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Après opération</p>
+                <p className={`text-sm font-bold ${afterCredits < 100 ? 'text-red-500' : afterCredits < 1000 ? 'text-amber-600' : 'text-slate-600'}`}>
+                  {afterCredits.toLocaleString('fr-FR')} crédits
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -353,17 +364,8 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin, credits = 
               <span>Total</span>
               <span>💎 {totalCredits} crédits</span>
             </div>
-            {/* Solde après opération */}
-            {isAdmin && (
-              <div className="flex items-center justify-between text-[11px] text-amber-600 pt-0.5">
-                <span>Solde après opération</span>
-                <span className={afterCredits < 500 ? 'text-red-500 font-semibold' : ''}>
-                  {afterCredits.toLocaleString('fr-FR')} crédits restants
-                </span>
-              </div>
-            )}
             {/* Alerte solde insuffisant */}
-            {isAdmin && !canAfford && (
+            {!canAfford && (
               <p className="text-[11px] text-red-600 font-semibold pt-0.5">
                 ⚠️ Solde insuffisant — rechargez vos crédits.
               </p>

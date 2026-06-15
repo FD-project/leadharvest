@@ -109,19 +109,33 @@ function AlertModal({ onConfirm, onCancel }) {
   );
 }
 
-// ─── Sélecteur d'axe — segmented compact ──────────────────────────────────────
-// Label à gauche, segmented control à droite (3 segments connectés en pill)
+// ─── Curseur 3 positions avec pill glissante ──────────────────────────────────
 
 const LEVELS = [
-  { key: 'ignorer',   label: 'Ignorer',   mark: '–' },
-  { key: 'normal',    label: 'Normal',    mark: '●' },
-  { key: 'prioriser', label: 'Prioriser', mark: '↑' },
+  { key: 'ignorer',   label: 'Ignorer'   },
+  { key: 'normal',    label: 'Normal'    },
+  { key: 'prioriser', label: 'Prioriser' },
 ];
 
+const PILL_BG = {
+  ignorer:   'bg-slate-400',
+  normal:    'bg-[#0D1B2A]',
+  prioriser: 'bg-amber-500',
+};
+
+const PILL_TEXT = {
+  ignorer:   'text-white',
+  normal:    'text-white',
+  prioriser: 'text-white',
+};
+
 function AxisRow({ dim, value, onChange }) {
+  const idx = LEVELS.findIndex((l) => l.key === value);
+  const safeIdx = idx < 0 ? 1 : idx;
+
   return (
     <div className="flex items-center gap-3 py-1.5">
-      {/* Label */}
+      {/* Label axe */}
       <Tooltip text={dim.hint} as="span">
         <span className="flex items-center gap-1.5 w-24 shrink-0 cursor-help select-none">
           <span className="text-base leading-none">{dim.icon}</span>
@@ -129,32 +143,32 @@ function AxisRow({ dim, value, onChange }) {
         </span>
       </Tooltip>
 
-      {/* Segmented control compact */}
-      <div className="flex flex-1 rounded-lg border border-slate-200 overflow-hidden text-[11px] font-medium">
-        {LEVELS.map(({ key, label, mark }) => {
-          const isActive = value === key;
-          let activeCls = '';
-          if (isActive) {
-            if (key === 'ignorer')   activeCls = 'bg-slate-200 text-slate-700';
-            if (key === 'normal')    activeCls = 'bg-[#0D1B2A] text-white';
-            if (key === 'prioriser') activeCls = 'bg-amber-500 text-white';
-          }
-          return (
-            <Tooltip key={key} text={dim.tooltips[key]} as="span">
-              <button
-                onClick={() => onChange(key)}
-                className={`
-                  flex-1 flex items-center justify-center gap-0.5 py-1.5 transition-all duration-150
-                  ${isActive ? activeCls : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}
-                  ${key !== 'ignorer' ? 'border-l border-slate-200' : ''}
-                `}
-              >
-                <span className="opacity-80 text-[10px]">{mark}</span>
-                <span>{label}</span>
-              </button>
-            </Tooltip>
-          );
-        })}
+      {/* Track */}
+      <div className="relative flex flex-1 bg-slate-100 rounded-full p-0.5 h-7">
+
+        {/* Pill glissante */}
+        <div
+          className={`absolute top-0.5 bottom-0.5 rounded-full shadow-sm transition-all duration-200 ease-out ${PILL_BG[value] ?? 'bg-[#0D1B2A]'}`}
+          style={{
+            width:  'calc(33.33% - 2px)',
+            left:   `calc(${safeIdx * 33.33}% + 2px)`,
+          }}
+        />
+
+        {/* Boutons transparents par-dessus */}
+        {LEVELS.map(({ key, label }, i) => (
+          <Tooltip key={key} text={dim.tooltips[key]} as="span">
+            <button
+              onClick={() => onChange(key)}
+              className={`
+                relative z-10 flex-1 text-[11px] font-medium transition-colors duration-150 rounded-full
+                ${value === key ? PILL_TEXT[key] : 'text-slate-400 hover:text-slate-600'}
+              `}
+            >
+              {label}
+            </button>
+          </Tooltip>
+        ))}
       </div>
     </div>
   );
