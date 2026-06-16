@@ -11,20 +11,9 @@ import Tooltip from '@/app/components/Tooltip';
 
 export { DEFAULT_PROFILE };
 
-// ─── 4 axes de scoring ────────────────────────────────────────────────────────
+// ─── 3 axes de scoring ────────────────────────────────────────────────────────
 
 const DIMENSIONS = [
-  {
-    key:   'adequation',
-    label: 'Adéquation',
-    icon:  '🎯',
-    hint:  'Pertinence du secteur d\'activité (code NAF)',
-    tooltips: {
-      ignorer:   'Ce critère ne compte pas dans la note. Les points sont répartis sur les autres axes.',
-      normal:    'Prend en compte la pertinence du secteur d\'activité de l\'entreprise.',
-      prioriser: 'Le secteur d\'activité pèsera deux fois plus lourd dans la note finale.',
-    },
-  },
   {
     key:   'capacite',
     label: 'Capacité',
@@ -224,48 +213,6 @@ function ThresholdSlider({ label, tooltip, value, min, max, color, onChange }) {
   );
 }
 
-// ─── Editeur liste NAF ────────────────────────────────────────────────────────
-
-function NafListEditor({ label, tooltip, values, onChange, colorClass }) {
-  const [input, setInput] = useState('');
-  const add = () => {
-    const code = input.trim().toUpperCase();
-    if (code && !values.includes(code)) onChange([...values, code]);
-    setInput('');
-  };
-  const remove = (c) => onChange(values.filter((x) => x !== c));
-  const isGreen = colorClass === 'text-green-600';
-
-  return (
-    <div>
-      <Tooltip text={tooltip}>
-        <label className={`text-[11px] font-semibold ${colorClass} mb-1 block cursor-help`}>
-          {label} ℹ
-        </label>
-      </Tooltip>
-      <div className="flex gap-1 mb-1.5">
-        <input
-          type="text" value={input} maxLength={6} placeholder="Ex : 43, 4391A"
-          onChange={(e) => setInput(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && add()}
-          className="flex-1 text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white text-slate-700"
-        />
-        <button onClick={add} className="px-2.5 py-1 rounded-lg bg-slate-700 text-white text-xs font-bold hover:bg-slate-800 transition-colors">+</button>
-      </div>
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {values.map((code) => (
-            <span key={code} className={`text-[10px] font-mono px-1.5 py-0.5 rounded border flex items-center gap-1 ${isGreen ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-              {code}
-              <button onClick={() => remove(code)} className="hover:opacity-60">×</button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function ScoringProfile({ profile, options, onChange, onOptionsChange }) {
@@ -293,7 +240,6 @@ export default function ScoringProfile({ profile, options, onChange, onOptionsCh
   const setFiltre = (k, v) => onOptionsChange?.({ ...opts, filtres: { ...opts.filtres, [k]: v } });
   const setSeuil  = (k, v) => onOptionsChange?.({ ...opts, seuils:  { ...opts.seuils,  [k]: v } });
   const setGeo    = (k, v) => onOptionsChange?.({ ...opts, geo:     { ...opts.geo,     [k]: v } });
-  const setNaf    = (k, v) => onOptionsChange?.({ ...opts, naf:     { ...opts.naf,     [k]: v } });
 
   const toggle = (key) => setOpenSection((s) => (s === key ? null : key));
 
@@ -338,7 +284,7 @@ export default function ScoringProfile({ profile, options, onChange, onOptionsCh
           </div>
         </div>
 
-        {/* 4 axes */}
+        {/* 3 axes */}
         <div className="space-y-0.5 border-t border-slate-100 pt-3">
           <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Pondération des axes</p>
           {DIMENSIONS.map((dim) => (
@@ -385,17 +331,6 @@ export default function ScoringProfile({ profile, options, onChange, onOptionsCh
                   onChange={(e) => setFiltre('anciennete_min', e.target.value ? Number(e.target.value) : null)}
                   className="w-full text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700" />
               </div>
-            </div>
-          </AccordionSection>
-
-          {/* Listes NAF */}
-          <AccordionSection label="Listes NAF" icon="📋" open={openSection === 'naf'} onToggle={() => toggle('naf')}
-            active={opts.naf.whitelist.length > 0 || opts.naf.blacklist.length > 0}>
-            <div className="space-y-3 mt-1">
-              <NafListEditor label="Liste blanche" tooltip="Ces codes NAF obtiennent automatiquement la note maximale en Adéquation."
-                values={opts.naf.whitelist} onChange={(v) => setNaf('whitelist', v)} colorClass="text-green-600" />
-              <NafListEditor label="Liste noire" tooltip="Ces codes NAF sont exclus de vos résultats, quels que soient les autres critères."
-                values={opts.naf.blacklist} onChange={(v) => setNaf('blacklist', v)} colorClass="text-red-600" />
             </div>
           </AccordionSection>
 
@@ -452,3 +387,4 @@ export default function ScoringProfile({ profile, options, onChange, onOptionsCh
     </>
   );
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   

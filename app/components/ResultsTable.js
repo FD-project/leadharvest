@@ -49,9 +49,6 @@ function ScoreTooltip({ entreprise, subscores, position }) {
   const age = getAgeLabel(entreprise.date_creation);
   const hasPhone = !!entreprise.telephone;
 
-  // Code NAF (division 2 chiffres) pour l'affichage adequation
-  const nafCode = (entreprise.activite_principale || entreprise.code_naf || '').replace(/\./g, '');
-
   return (
     <div
       className="fixed z-[9999] bg-slate-900 text-white rounded-xl p-4 shadow-2xl text-xs pointer-events-none"
@@ -61,21 +58,6 @@ function ScoreTooltip({ entreprise, subscores, position }) {
       <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-slate-900 rotate-45" />
 
       <p className="font-bold text-center text-sm mb-3 text-slate-100">Détail du score</p>
-
-      {/* Adéquation (NAF) */}
-      <div className="mb-2.5">
-        <div className="flex items-center justify-between mb-1">
-          <span className="font-semibold text-blue-300">🎯 Adéquation</span>
-          <span className="font-bold text-blue-200">{subscores.adequation ?? '—'}/100</span>
-        </div>
-        <div className="bg-slate-800 rounded-lg px-3 py-2 space-y-0.5 text-slate-400">
-          <div className="flex justify-between">
-            <span>Code NAF</span>
-            <span className="text-slate-300 font-mono">{nafCode || 'Inconnu'}</span>
-          </div>
-          <div className="text-slate-500 text-[10px]">Score selon la division sectorielle</div>
-        </div>
-      </div>
 
       {/* Capacité */}
       <div className="mb-2.5">
@@ -150,7 +132,6 @@ function ScoreTooltip({ entreprise, subscores, position }) {
 // ─── Sous-composants ──────────────────────────────────────────────────────────
 
 const SUBSCORE_STYLES = [
-  { key: 'adequation',   label: 'Adéq', color: 'bg-blue-400'   },
   { key: 'capacite',     label: 'Cap.',  color: 'bg-teal-400'   },
   { key: 'maturite',     label: 'Mat.',  color: 'bg-purple-400' },
   { key: 'joignabilite', label: 'Joi.',  color: 'bg-amber-400'  },
@@ -1131,3 +1112,4 @@ function FilterEmptyState() {
     </div>
   );
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      

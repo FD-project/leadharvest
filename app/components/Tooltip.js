@@ -20,10 +20,18 @@ export default function Tooltip({ text, children, delay = 150, as: Tag = 'div', 
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       if (!triggerRef.current) return;
-      const r = triggerRef.current.getBoundingClientRect();
+      // display:contents n'a pas de boîte CSS — getBoundingClientRect retourne {0,0}
+      // On se rabat sur le premier enfant qui a une vraie boîte.
+      let el = triggerRef.current;
+      if (typeof getComputedStyle !== 'undefined' &&
+          getComputedStyle(el).display === 'contents' &&
+          el.firstElementChild) {
+        el = el.firstElementChild;
+      }
+      const r = el.getBoundingClientRect();
       setCoords({
-        top:  r.top  - 10,          // au-dessus du trigger (viewport px)
-        left: r.left + r.width / 2, // centré horizontalement
+        top:  r.top  - 10,
+        left: r.left + r.width / 2,
       });
       setVisible(true);
     }, delay);
@@ -66,14 +74,4 @@ export default function Tooltip({ text, children, delay = 150, as: Tag = 'div', 
         >
           {text}
           <span style={{
-            position: 'absolute', top: '100%', left: '50%',
-            transform: 'translateX(-50%)',
-            borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
-            borderTop: '5px solid #0f172a', width: 0, height: 0,
-          }} />
-        </div>,
-        document.body
-      )}
-    </>
-  );
-}
+            position: 'absolute', top: '100%'
