@@ -376,7 +376,7 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin, credits = 
         {sources.scrape && (
           <div className="mx-6 mb-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              ⚠️ Les emails nominatifs générés (prénom.nom@domaine) sont des <strong>suggestions non vérifiées</strong> issues du registre SIRENE. Ils apparaissent dans une colonne dédiée de l'export. L'enrichissement est réservé à la prospection B2B conformément au RGPD.
+              ℹ️ Les emails affichés sont collectés directement sur le site web de l'entreprise (scraping de pages contact). Aucun email n'est généré algorithmiquement. L'enrichissement est réservé à la prospection B2B conformément au RGPD.
             </p>
           </div>
         )}
@@ -1027,25 +1027,7 @@ const EntrepriseRow = memo(function EntrepriseRow({ entreprise: e, selected, onT
               >
                 {e.email}
               </a>
-              {/* Badge source email */}
-              {e.email_source === 'scraped' && (
-                <span className="text-[10px] text-green-600" title="Email trouvé sur le site web">🌐 scraping</span>
-              )}
-              {e.email_source === 'algorithmic_nominative' && (
-                <span className="text-[10px] text-blue-600" title="Email nominatif généré depuis SIRENE (prénom.nom@domaine) — à vérifier">👤 généré</span>
-              )}
-              {e.email_source === 'algorithmic_generic' && (
-                <span className="text-[10px] text-amber-600" title="Adresse générique générée (contact@domaine) — à vérifier">💡 généré</span>
-              )}
-              {/* Candidats nominatifs à tester */}
-              {e.email_candidates_nominative?.length > 0 && (
-                <span
-                  className="text-[10px] text-blue-500 cursor-help underline decoration-dotted"
-                  title={`Emails nominatifs à tester :\n${e.email_candidates_nominative.join('\n')}`}
-                >
-                  👤 {e.email_candidates_nominative.length} nominatif{e.email_candidates_nominative.length > 1 ? 's' : ''} à tester
-                </span>
-              )}
+              <span className="text-[10px] text-green-600" title="Email collecté sur le site web de l'entreprise">🌐 scraping</span>
             </div>
           ) : e.enriched ? (
             <span className="text-slate-300 text-xs">—</span>

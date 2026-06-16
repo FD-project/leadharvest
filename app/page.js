@@ -335,8 +335,7 @@ export default function Home() {
                 {!isLoading && allResults.length > 0 && (() => {
                   const enrichedCount   = allResults.filter(r => r.enriched).length;
                   const telCount        = allResults.filter(r => r.telephone).length;
-                  const emailScraped    = allResults.filter(r => r.email && r.email_source === 'scraped').length;
-                  const emailGenerated  = allResults.filter(r => r.email && (r.email_source === 'algorithmic_nominative' || r.email_source === 'algorithmic_generic')).length;
+                  const emailCount      = allResults.filter(r => r.email).length;
                   const siteCount       = allResults.filter(r => r.site_web).length;
                   return (
                     <div className="space-y-3 mb-4">
@@ -365,11 +364,10 @@ export default function Home() {
 
                       {/* Ligne 2 — résultats d'enrichissement, visible après enrichissement */}
                       {enrichedCount > 0 && (
-                        <div className="grid grid-cols-4 gap-3">
-                          <KpiCard value={telCount}       label="Téléphones trouvés"  icon="📞" color="text-[#198754]" hint={telCount === 0 ? "Aucun téléphone trouvé" : null} />
-                          <KpiCard value={emailScraped}   label="Emails scrapés"      icon="📧" color="text-[#198754]" hint={emailScraped === 0 ? "Aucun email trouvé sur les sites" : "Emails extraits directement du site web"} />
-                          <KpiCard value={emailGenerated} label="Emails générés"      icon="💡" color="text-[#fd7e14]" hint={emailGenerated === 0 ? "—" : "Suggestions algorithmiques (contact@domaine) — à vérifier"} />
-                          <KpiCard value={siteCount}      label="Sites web trouvés"   icon="🌐" color="text-[#0d6efd]" hint={siteCount === 0 ? "Aucun site trouvé" : null} />
+                        <div className="grid grid-cols-3 gap-3">
+                          <KpiCard value={telCount}   label="Téléphones trouvés" icon="📞" color="text-[#198754]" hint={telCount === 0 ? "Aucun téléphone trouvé" : null} />
+                          <KpiCard value={emailCount} label="Emails trouvés"      icon="📧" color="text-[#198754]" hint={emailCount === 0 ? "Aucun email trouvé sur les sites" : "Emails collectés directement sur les sites web"} />
+                          <KpiCard value={siteCount}  label="Sites web trouvés"   icon="🌐" color="text-[#0d6efd]" hint={siteCount === 0 ? "Aucun site trouvé" : null} />
                         </div>
                       )}
                     </div>
