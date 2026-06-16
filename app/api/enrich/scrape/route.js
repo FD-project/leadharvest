@@ -14,12 +14,45 @@ const CONTACT_PATHS = [
   '',               // homepage en dernier
 ];
 
-// Patterns à rejeter — faux positifs courants
+// ─── Niveau 1 : blacklist de patterns dans l'adresse email ───────────────────
+// Faux positifs courants : plateformes, éditeurs de thèmes, rôles techniques
 const EMAIL_BLACKLIST = [
-  'noreply', 'no-reply', 'example', 'wordpress', 'sentry',
-  'wixpress', 'squarespace', 'shopify', 'prestashop',
+  // Adresses système / rôles
+  'noreply', 'no-reply', 'example', 'sentry', 'abuse@', 'postmaster@',
+  'webmaster@', 'hostmaster@', 'mailer-daemon',
+  // Mentions légales / RGPD
   'privacy@', 'legal@', 'dpo@', 'rgpd@',
+  // Constructeurs de sites
+  'wordpress', 'wixpress', 'squarespace', 'shopify', 'prestashop',
+  'wix.com', 'weebly.com', 'webflow.io',
+  // Éditeurs de thèmes WordPress connus
+  'elegantthemes.com', 'elementor.com', 'wpbakery.com', 'themeforest.net',
+  'envato.com', 'themeisle.com', 'generatepress.com', 'avada.io',
+  'wpforms.com', 'gravityforms.com', 'yoast.com', 'wpengine.com',
+  'mythemeshop.com', 'studiopress.com', 'astra-theme.com',
+  // Hébergeurs (leur email ne peut pas être celui de l'entreprise)
+  'ovh.com', 'ovh.net', 'ovhcloud.com', 'ionos.fr', 'ionos.com',
+  '1and1.fr', '1and1.com', 'godaddy.com', 'gandi.net',
+  'infomaniak.com', 'planethoster.com', 'o2switch.fr',
+  'hostinger.com', 'bluehost.com', 'siteground.com',
 ];
+
+// ─── Niveau 2a : domaines d'email acceptables hors domaine site ──────────────
+// Webmails personnels courants en France — un artisan peut avoir son email
+// pro sur Orange, SFR, Gmail, etc. Ces adresses sont légitimes même si elles
+// ne correspondent pas au domaine du site.
+const WEBMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com',
+  'outlook.com', 'outlook.fr', 'hotmail.com', 'hotmail.fr', 'live.fr', 'live.com', 'msn.com',
+  'yahoo.com', 'yahoo.fr',
+  'orange.fr', 'wanadoo.fr',
+  'sfr.fr', 'sfr.com', 'neuf.fr',
+  'free.fr', 'aliceadsl.fr',
+  'laposte.net',
+  'bbox.fr', 'bouyguestelecom.fr',
+  'icloud.com', 'me.com', 'mac.com',
+  'proton.me', 'protonmail.com',
+]);
 
 // Domaines plateformes/agrégateurs — jamais un site propre à l'entreprise
 // → on n'y scrape pas
@@ -69,31 +102,78 @@ async function enrichEntreprise(entreprise) {
   const baseUrl = normalizeUrl(entreprise.site_web);
   if (!isSafeUrl(baseUrl)) return EMPTY(entreprise.siren);
 
-  const domain = extractDomain(entreprise.site_web);
+  const siteDomain = extractDomain(entreprise.site_web);
 
   // Rejeter les domaines plateformes (Facebook, Banette, etc.) — pas un site propre
-  const isPlatform = !domain || [...PLATFORM_DOMAINS].some(
-    p => domain === p || domain.endsWith('.' + p)
+  const isPlatform = !siteDomain || [...PLATFORM_DOMAINS].some(
+    p => siteDomain === p || siteDomain.endsWith('.' + p)
   );
   if (isPlatform) return EMPTY(entreprise.siren);
 
   // ── Scraping HTML : recherche d'emails réels sur le site de l'entreprise ───
   // Seuls les emails effectivement présents sur le site sont remontés.
-  // Aucune génération algorithmique (prénom.nom@domaine) — évite les hard bounces.
+  // Aucune génération algorithmique — évite les hard bounces.
   let scrapedEmail = null;
   try {
     for (const path of CONTACT_PATHS) {
-      const email = await fetchAndExtractEmail(baseUrl + path, domain);
+      const email = await fetchAndExtractEmail(baseUrl + path, siteDomain);
       if (email) { scrapedEmail = email; break; }
     }
   } catch (err) {
     console.error(`Scraping SIREN ${entreprise.siren}:`, err.message);
   }
 
+  // ── Niveau 2b : cohérence domaine email vs domaine du site ────────────────
+  // Un email trouvé sur un domaine tiers inconnu (ni le site, ni un webmail
+  // connu) est rejeté — c'est le signe d'un email d'éditeur de thème ou de
+  // plugin embarqué dans la page.
+  if (scrapedEmail && !isTrustedEmail(scrapedEmail, siteDomain)) {
+    console.warn(`Email rejeté (domaine tiers non reconnu) : ${scrapedEmail} pour ${siteDomain}`);
+    scrapedEmail = null;
+  }
+
   return {
     siren:         entreprise.siren,
     email_website: scrapedEmail ?? null,
   };
+}
+
+// ─── Validation email ─────────────────────────────────────────────────────────
+
+/**
+ * Vérifie qu'un email est fiable avant de le retourner.
+ * Niveau 2 : cohérence domaine email vs domaine du site.
+ *
+ * Accepté si :
+ *   - l'email est sur le même domaine que le site de l'entreprise
+ *   - OU l'email est sur un webmail connu (Gmail, Orange, SFR, etc.)
+ * Rejeté si :
+ *   - l'email est sur un domaine tiers inconnu (éditeur de thème, hébergeur…)
+ */
+function isTrustedEmail(email, siteDomain) {
+  const emailDomain = email.split('@')[1];
+  if (!emailDomain) return false;
+
+  // Même domaine que le site (ou sous-domaine) → toujours OK
+  if (siteDomain && (emailDomain === siteDomain || emailDomain.endsWith('.' + siteDomain))) {
+    return true;
+  }
+
+  // Webmail connu → OK (artisan avec email perso)
+  if (WEBMAIL_DOMAINS.has(emailDomain)) return true;
+
+  // Domaine tiers inconnu → rejeté
+  return false;
+}
+
+function isValidEmail(email) {
+  if (!email.includes('@'))                                          return false;
+  if (EMAIL_BLACKLIST.some(b => email.toLowerCase().includes(b)))   return false;
+  if (/\.(png|jpg|gif|svg|webp|css|js)$/i.test(email))             return false;
+  if (email.includes('..'))                                          return false;
+  const tld = email.split('.').pop();
+  if (tld.length > 6)                                               return false;
+  return true;
 }
 
 // ─── Scraping HTML ────────────────────────────────────────────────────────────
@@ -164,7 +244,8 @@ async function fetchAndExtractEmail(url, domain = null) {
 /**
  * Extrait le meilleur email d'un bloc HTML.
  * Priorité : mailto sur même domaine > mailto autre > texte même domaine > texte autre.
- * Seuls les emails réellement présents sur le site sont retournés.
+ * Seuls les emails passant isValidEmail() (niveau 1) sont candidats.
+ * La cohérence domaine (niveau 2) est vérifiée en aval dans enrichEntreprise().
  */
 function extractEmail(html, domain = null) {
   const found = [];
@@ -197,14 +278,4 @@ function extractEmail(html, domain = null) {
 
   // Fallback : premier mailto, sinon premier trouvé
   return (found.find(f => f.type === 'mailto') ?? found[0]).email;
-}
-
-function isValidEmail(email) {
-  if (!email.includes('@'))                                   return false;
-  if (EMAIL_BLACKLIST.some(b => email.includes(b)))          return false;
-  if (/\.(png|jpg|gif|svg|webp|css|js)$/i.test(email))       return false;
-  if (email.includes('..'))                                   return false;
-  const tld = email.split('.').pop();
-  if (tld.length > 6)                                        return false;
-  return true;
 }
