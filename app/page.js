@@ -16,6 +16,7 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [isCapped, setIsCapped] = useState(false); // true = plafond 1000 résultats atteint
+  const [searchMeta, setSearchMeta] = useState({ division: null, departements: [] }); // pour le nom de fichier export
   const [cacheSize,   setCacheSize]   = useState(() => {
     // Initialisé côté client uniquement
     if (typeof window === 'undefined') return 0;
@@ -121,7 +122,8 @@ export default function Home() {
   };
 
   // Un seul appel API au lancement de la recherche
-  const handleSearch = async ({ nafCodes, departements, tranches }) => {
+  const handleSearch = async ({ nafCodes, departements, tranches, division }) => {
+    setSearchMeta({ division, departements });
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
@@ -391,6 +393,7 @@ export default function Home() {
                   onSort={handleSort}
                   onScoreFilter={handleScoreFilter}
                   onEnrichFilter={handleEnrichFilter}
+                  searchMeta={searchMeta}
                 />
                 {!isLoading && allResults.length > 0 && (
                   <Pagination

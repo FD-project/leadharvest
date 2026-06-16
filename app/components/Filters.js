@@ -9,27 +9,24 @@ const WARN_THRESHOLD  = 500;   // avertissement : recherche potentiellement long
 const BLOCK_THRESHOLD = 2000;  // blocage : volume vraiment excessif (rare)
 
 export default function Filters({ onSearch, isLoading }) {
-  const [selectedDivisions, setSelectedDivisions] = useState([]);
+  const [selectedDivision, setSelectedDivision] = useState(null); // sélection unique
   const [nafCodes, setNafCodes] = useState([]);
   const [selectedNaf, setSelectedNaf] = useState([]);
   const [selectedDepts, setSelectedDepts] = useState([]);
   const [selectedTranches, setSelectedTranches] = useState([]);
 
-  // Quand les divisions changent, on agrège les codes NAF de toutes les divisions cochées
+  // Quand la division change, on charge les codes NAF correspondants
   useEffect(() => {
-    if (selectedDivisions.length > 0) {
-      // Fusionner les codes de toutes les divisions sélectionnées (dédupliquer par code)
-      const allCodes = selectedDivisions.flatMap(div => getCodesForDivision(div));
-      const unique = Array.from(new Map(allCodes.map(c => [c.code, c])).values());
-      // Trier par code NAF
-      unique.sort((a, b) => a.code.localeCompare(b.code));
-      setNafCodes(unique);
-      setSelectedNaf(unique.map(c => c.code)); // tout coché par défaut
+    if (selectedDivision) {
+      const codes = getCodesForDivision(selectedDivision);
+      codes.sort((a, b) => a.code.localeCompare(b.code));
+      setNafCodes(codes);
+      setSelectedNaf(codes.map(c => c.code)); // tout coché par défaut
     } else {
       setNafCodes([]);
       setSelectedNaf([]);
     }
-  }, [selectedDivisions]);
+  }, [selectedDivision]);
 
   const toggleItem = (list, setList, value) => {
     if (list.includes(value)) {
@@ -53,15 +50,16 @@ export default function Filters({ onSearch, isLoading }) {
   const isWarning   = estimatedCalls > WARN_THRESHOLD && !isOverLimit;
 
   const handleSearch = () => {
-    if (selectedDivisions.length === 0 || selectedNaf.length === 0 || selectedDepts.length === 0 || isOverLimit) return;
+    if (!selectedDivision || selectedNaf.length === 0 || selectedDepts.length === 0 || isOverLimit) return;
     onSearch({
       nafCodes: selectedNaf,
       departements: selectedDepts,
       tranches: selectedTranches,
+      division: selectedDivision,
     });
   };
 
-  const isValid = selectedDivisions.length > 0 && selectedNaf.length > 0 && selectedDepts.length > 0 && !isOverLimit;
+  const isValid = !!selectedDivision && selectedNaf.length > 0 && selectedDepts.length > 0 && !isOverLimit;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
@@ -69,26 +67,30 @@ export default function Filters({ onSearch, isLoading }) {
       {/* Zone scrollable des filtres */}
       <div className="p-6 space-y-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
 
-      {/* Filtre 1 — Secteur d'activité */}
+      {/* Filtre 1 — Secteur d'activité (sélection unique) */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-semibold text-navy">
-            Secteur(s) d'activité ({selectedDivisions.length}/{NAF_DIVISIONS.length} sélectionné{selectedDivisions.length > 1 ? 's' : ''})
+            Secteur d'activité
           </label>
-          <button
-            onClick={() => toggleAll(selectedDivisions, setSelectedDivisions, NAF_DIVISIONS.map(d => d.code))}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-          >
-            {selectedDivisions.length === NAF_DIVISIONS.length ? 'Tout décocher' : 'Tout cocher'}
-          </button>
+          {selectedDivision && (
+            <button
+              onClick={() => setSelectedDivision(null)}
+              className="text-xs text-slate-400 hover:text-slate-600 font-medium"
+            >
+              ✕ Effacer
+            </button>
+          )}
         </div>
         <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1">
           {NAF_DIVISIONS.map(d => (
-            <label key={d.code} className="flex items-start gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1">
+            <label key={d.code} className={`flex items-start gap-2 cursor-pointer rounded px-2 py-1 transition-colors ${selectedDivision === d.code ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50'}`}>
               <input
-                type="checkbox"
-                checked={selectedDivisions.includes(d.code)}
-                onChange={() => toggleItem(selectedDivisions, setSelectedDivisions, d.code)}
+                type="radio"
+                name="division"
+                value={d.code}
+                checked={selectedDivision === d.code}
+                onChange={() => setSelectedDivision(d.code)}
                 className="mt-0.5 accent-blue-600"
               />
               <span className="text-xs text-slate-700">
@@ -243,7 +245,7 @@ export default function Filters({ onSearch, isLoading }) {
 
         {!isValid && !isOverLimit && (
           <p className="text-xs text-slate-400 text-center">
-            Sélectionnez au moins un secteur et un département
+            Sélectionnez un secteur d'activité et au moins un département
           </p>
         )}
       </div>

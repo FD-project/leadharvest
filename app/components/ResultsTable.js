@@ -255,8 +255,11 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin, credits = 
   const toggle = (key) => setSources((prev) => ({ ...prev, [key]: !prev[key] }));
   const hasSourceSelected = Object.values(sources).some(Boolean);
 
+  // Pour le scraping : si Google est aussi coché, il peut découvrir de nouveaux sites
+  // → on facture count (worst case). Sinon, seuls les sites déjà connus sont scrapables.
+  const scrapeCount   = sources.scrape ? (sources.google ? count : sitesCount) : 0;
   const googleCredits = sources.google ? count * GOOGLE_CREDITS_UNIT : 0;
-  const scrapeCredits = sources.scrape ? count * SCRAPE_CREDITS_UNIT : 0;
+  const scrapeCredits = scrapeCount * SCRAPE_CREDITS_UNIT;
   const totalCredits  = googleCredits + scrapeCredits;
   const canAfford     = isAdmin ? credits >= totalCredits : true;
   const afterCredits  = Math.max(0, credits - totalCredits);
@@ -338,7 +341,7 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin, credits = 
             checked={sources.scrape}
             onChange={() => !scrapeAvailable ? null : toggle('scrape')}
             label="Scraping email"
-            badge={`${count} × ${SCRAPE_CREDITS_UNIT} crédits`}
+            badge={`${scrapeCount} × ${SCRAPE_CREDITS_UNIT} crédits`}
             description={scrapeDescription}
             disabled={!scrapeAvailable}
           />
@@ -357,7 +360,7 @@ function EnrichModal({ count, sitesCount, onClose, onLaunch, isAdmin, credits = 
             {sources.scrape && (
               <div className="flex items-center justify-between text-xs text-amber-700">
                 <span>Scraping email</span>
-                <span>{count} × {SCRAPE_CREDITS_UNIT} = <strong>{scrapeCredits} crédits</strong></span>
+                <span>{scrapeCount} × {SCRAPE_CREDITS_UNIT} = <strong>{scrapeCredits} crédits</strong></span>
               </div>
             )}
             <div className="flex items-center justify-between text-xs text-amber-900 font-bold border-t border-amber-200 pt-1.5 mt-1">
@@ -575,6 +578,7 @@ export default function ResultsTable({
   onSort,
   onScoreFilter,
   onEnrichFilter,
+  searchMeta,
 }) {
   const [selected,        setSelected]        = useState(new Set());
   const [showEnrichModal, setShowEnrichModal]  = useState(false);
@@ -745,7 +749,7 @@ export default function ResultsTable({
               const toExport = selected.size > 0
                 ? base.filter((r) => selected.has(r.siren))
                 : base;
-              exportEntreprisesCSV(toExport);
+              exportEntreprisesCSV(toExport, searchMeta);
             }}
         />
 
