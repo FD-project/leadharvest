@@ -74,4 +74,14 @@ export default function Tooltip({ text, children, delay = 150, as: Tag = 'div', 
         >
           {text}
           <span style={{
-            position: 'absolute', top: '100%'
+            position: 'absolute', top: '100%', left: '50%',
+            transform: 'translateX(-50%)',
+            borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
+            borderTop: '5px solid #0f172a', width: 0, height: 0,
+          }} />
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
